@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<style>
+  :root {
+    --wine: #644545; --crimson: #a82727; --icon: #7d3a3a;
+    --gold: #a08348; --pale: #f6eeee; --pale2: #f9f3ec;
+    --text: #272323; --muted: #817777;
+  }
+  html, body { margin: 0; padding: 0; background: #ffffff; font-family: 'FreeSans', 'DejaVu Sans', sans-serif; }
+  .canvas { width: 1040px; height: 710px; position: relative; background: #ffffff; }
+  .node {
+    position: absolute; box-sizing: border-box;
+    border: 2px solid var(--icon); border-radius: 10px;
+    background: var(--pale); padding: 15px 17px;
+  }
+  .node h4 { margin: 0 0 7px 0; font-size: 24px; line-height: 1.15; color: var(--text); font-weight: 700; }
+  .node p { margin: 0; font-size: 19px; line-height: 1.3; color: var(--muted); }
+  .node.dark { background: var(--wine); border-color: var(--wine); padding: 14px 20px; }
+  .node.dark h4 { color: #ffffff; }
+  .node.gold { border-color: var(--gold); background: var(--pale2); }
+  .step {
+    position: absolute; box-sizing: border-box;
+    border: 2px solid var(--gold); border-radius: 8px;
+    background: #ffffff; padding: 11px 13px; width: 176px; height: 134px;
+  }
+  .step h5 { margin: 0 0 6px 0; font-size: 22px; color: var(--text); font-weight: 700; }
+  .step p { margin: 0; font-size: 19px; line-height: 1.22; color: var(--muted); }
+  svg.wires { position: absolute; inset: 0; width: 1040px; height: 710px; pointer-events: none; }
+  .wlabel {
+    position: absolute; font-size: 17px; color: var(--muted);
+    background: #ffffff; padding: 2px 8px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <svg class="wires" viewBox="0 0 1040 710">
+    <defs>
+      <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+        <path d="M0,0 L8,4.5 L0,9 Z" fill="#7d3a3a"/>
+      </marker>
+      <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+        <path d="M0,0 L8,4.5 L0,9 Z" fill="#a08348"/>
+      </marker>
+      <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+        <path d="M0,0 L8,4.5 L0,9 Z" fill="#a82727"/>
+      </marker>
+    </defs>
+    <!-- pipeline 1 -> 2 -> 3 -> 4 -->
+    <line x1="256" y1="133" x2="278" y2="133" stroke="#7d3a3a" stroke-width="2.5" marker-end="url(#a)"/>
+    <line x1="516" y1="133" x2="538" y2="133" stroke="#7d3a3a" stroke-width="2.5" marker-end="url(#a)"/>
+    <line x1="776" y1="133" x2="798" y2="133" stroke="#7d3a3a" stroke-width="2.5" marker-end="url(#a)"/>
+    <!-- 4 down to Право слова -->
+    <line x1="917" y1="222" x2="917" y2="256" stroke="#7d3a3a" stroke-width="2.5" marker-end="url(#a)"/>
+    <!-- право слова: forgiveness left, betrayal down -->
+    <line x1="776" y1="337" x2="250" y2="337" stroke="#a08348" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#ag)"/>
+    <line x1="902" y1="416" x2="902" y2="466" stroke="#a82727" stroke-width="2.5" marker-end="url(#ar)"/>
+    <!-- reconciliation up to memory -->
+    <line x1="132" y1="258" x2="132" y2="226" stroke="#a08348" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#ag)"/>
+    <!-- stairs arrows -->
+    <line x1="200" y1="602" x2="226" y2="602" stroke="#a82727" stroke-width="2.5" marker-end="url(#ar)"/>
+    <line x1="408" y1="602" x2="434" y2="602" stroke="#a82727" stroke-width="2.5" marker-end="url(#ar)"/>
+    <line x1="616" y1="602" x2="642" y2="602" stroke="#a82727" stroke-width="2.5" marker-end="url(#ar)"/>
+    <line x1="824" y1="602" x2="850" y2="602" stroke="#a82727" stroke-width="2.5" marker-end="url(#ar)"/>
+  </svg>
+
+  <div class="node" style="left: 22px; top: 48px; width: 230px; height: 170px;">
+    <h4>1. Память</h4>
+    <p>Журнал событий с весами: честь, кровь, злато, вера</p>
+  </div>
+  <div class="node" style="left: 282px; top: 48px; width: 230px; height: 170px;">
+    <h4>2. Отношение</h4>
+    <p>Сумма событий без забвения — память не прощает</p>
+  </div>
+  <div class="node" style="left: 542px; top: 48px; width: 230px; height: 170px;">
+    <h4>3. Порог разрыва</h4>
+    <p>Черта характера, амбиция и накопленная обида</p>
+  </div>
+  <div class="node" style="left: 802px; top: 48px; width: 230px; height: 170px;">
+    <h4>4. Узел случая</h4>
+    <p>Спутник один, имеет доступ и стимул действовать</p>
+  </div>
+
+  <div class="node gold" style="left: 780px; top: 262px; width: 244px; height: 150px;">
+    <h4>5. Право слова</h4>
+    <p>Сцена-разговор: игрок заметил сигналы — есть последний шанс</p>
+  </div>
+  <div class="node" style="left: 22px; top: 262px; width: 224px; height: 170px;">
+    <h4>Примирение</h4>
+    <p>Обет обновлён; событие входит в память с большим весом</p>
+  </div>
+  <div class="wlabel" style="left: 470px; top: 312px;">прощение</div>
+  <div class="wlabel" style="left: 690px; top: 428px;">молчание и обида</div>
+
+  <div class="node dark" style="left: 22px; top: 474px; width: 1018px;">
+    <h4>Лестница разрыва — ступени растут необратимо</h4>
+  </div>
+
+  <div class="step" style="left: 22px; top: 540px;">
+    <h5>I. Сомнение</h5>
+    <p>Реплики, взгляды, лагерные сцены</p>
+  </div>
+  <div class="step" style="left: 230px; top: 540px;">
+    <h5>II. Оговор</h5>
+    <p>Утечка планов, порча снаряжения</p>
+  </div>
+  <div class="step" style="left: 438px; top: 540px;">
+    <h5>III. Уход</h5>
+    <p>Уходит с долей казны и квестом</p>
+  </div>
+  <div class="step" style="left: 646px; top: 540px;">
+    <h5>IV. Предательство</h5>
+    <p>Открытый переход к врагу</p>
+  </div>
+  <div class="step" style="left: 854px; top: 540px; border-color: var(--crimson); background: #f6eeee;">
+    <h5 style="color: var(--crimson);">V. Ночь ножей</h5>
+    <p>Покушение на атамана</p>
+  </div>
+</div>
+</body>
+</html>

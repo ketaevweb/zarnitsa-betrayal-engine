@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ZARNITSA · Production plan and budget</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .kicker { font-family: var(--font-body); font-size: var(--fs-small); font-weight: 600; letter-spacing: .35em; text-transform: uppercase; color: var(--accent-bright); }
+  .h1 { font-family: var(--font-heading); font-size: var(--fs-h1); font-weight: 700; line-height: 1.08; letter-spacing: .01em; color: var(--primary); }
+  .num { font-family: var(--font-num); }
+  .phase-name { font-family: var(--font-heading); font-size: var(--fs-small); font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--primary); }
+  .bar-track { height: 8px; background: var(--bg-3); border-radius: 4px; margin-top: 5px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+  .bar-label { font-family: var(--font-body); font-size: var(--fs-small); color: var(--primary); }
+  .bar-sum { font-family: var(--font-num); font-size: var(--fs-small); color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="h-full flex flex-col justify-between" style="padding:48px 64px 36px;">
+
+    <!-- Headline -->
+    <div class="flex items-end justify-between">
+      <div>
+        <div class="kicker">Production plan</div>
+        <h1 class="h1" style="margin:12px 0 0;">Five years, five phases — $210M</h1>
+      </div>
+      <hr class="rule-gold" aria-hidden="true" style="width:220px; margin:0 0 12px;">
+    </div>
+
+    <!-- Five phases -->
+    <div class="grid grid-cols-5 gap-4">
+      <div class="card flex flex-col" style="padding:16px 15px;">
+        <div class="num text-gold" style="font-size:var(--fs-h2); font-weight:600; line-height:1;">2027</div>
+        <div class="phase-name" style="margin-top:9px;">Pre-production</div>
+        <div class="text-muted" style="font-size:var(--fs-micro); line-height:1.55; margin-top:7px;">vertical slice: Polesie, combat, vataga memory</div>
+        <div style="font-size:var(--fs-micro); color:var(--accent-bright); letter-spacing:.04em; margin-top:auto; padding-top:10px;">90–120 staff</div>
+      </div>
+      <div class="card flex flex-col" style="padding:16px 15px;">
+        <div class="num text-gold" style="font-size:var(--fs-h2); font-weight:600; line-height:1;">2028</div>
+        <div class="phase-name" style="margin-top:9px;">Production I</div>
+        <div class="text-muted" style="font-size:var(--fs-micro); line-height:1.55; margin-top:7px;">two regions, full bestiary, Betrayal Engine v1</div>
+        <div style="font-size:var(--fs-micro); color:var(--accent-bright); letter-spacing:.04em; margin-top:auto; padding-top:10px;">240–300 staff</div>
+      </div>
+      <div class="card flex flex-col" style="padding:16px 15px;">
+        <div class="num text-gold" style="font-size:var(--fs-h2); font-weight:600; line-height:1;">2029</div>
+        <div class="phase-name" style="margin-top:9px;">Production II</div>
+        <div class="text-muted" style="font-size:var(--fs-micro); line-height:1.55; margin-top:7px;">all five regions, voiced story skeleton, co-op alpha</div>
+        <div style="font-size:var(--fs-micro); color:var(--accent-bright); letter-spacing:.04em; margin-top:auto; padding-top:10px;">360–420 staff</div>
+      </div>
+      <div class="card flex flex-col" style="padding:16px 15px;">
+        <div class="num text-gold" style="font-size:var(--fs-h2); font-weight:600; line-height:1;">2030</div>
+        <div class="phase-name" style="margin-top:9px;">Alpha &amp; beta</div>
+        <div class="text-muted" style="font-size:var(--fs-micro); line-height:1.55; margin-top:7px;">content lock, balancing, co-op beta, localization</div>
+        <div style="font-size:var(--fs-micro); color:var(--accent-bright); letter-spacing:.04em; margin-top:auto; padding-top:10px;">420–450 staff</div>
+      </div>
+      <div class="card flex flex-col" style="padding:16px 15px;">
+        <div class="num text-gold" style="font-size:var(--fs-h2); font-weight:600; line-height:1;">2031</div>
+        <div class="phase-name" style="margin-top:9px;">Release</div>
+        <div class="text-muted" style="font-size:var(--fs-micro); line-height:1.55; margin-top:7px;">optimization, certification, marketing campaign</div>
+        <div style="font-size:var(--fs-micro); color:var(--accent-bright); letter-spacing:.04em; margin-top:auto; padding-top:10px;">400 → 150 staff</div>
+      </div>
+    </div>
+
+    <!-- Budget -->
+    <div>
+      <div class="flex items-center" style="gap:18px;">
+        <span style="font-size:var(--fs-micro); font-weight:600; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); white-space:nowrap;">Budget: $210M</span>
+        <hr class="rule-gold flex-1" aria-hidden="true" style="margin:0;">
+      </div>
+      <div class="flex flex-col" style="gap:11px; margin-top:14px;">
+        <div>
+          <div class="flex items-baseline justify-between">
+            <span class="bar-label">Content</span><span class="bar-sum">$97M (46%)</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:46%;"></div></div>
+        </div>
+        <div>
+          <div class="flex items-baseline justify-between">
+            <span class="bar-label">Marketing</span><span class="bar-sum">$44M (21%)</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:21%;"></div></div>
+        </div>
+        <div>
+          <div class="flex items-baseline justify-between">
+            <span class="bar-label">Engine &amp; co-op tech</span><span class="bar-sum">$25M (12%)</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:12%;"></div></div>
+        </div>
+        <div>
+          <div class="flex items-baseline justify-between">
+            <span class="bar-label">Live support &amp; first DLC</span><span class="bar-sum">$19M (9%)</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:9%;"></div></div>
+        </div>
+        <div>
+          <div class="flex items-baseline justify-between">
+            <span class="bar-label">Audio &amp; 6 voice-over languages</span><span class="bar-sum">$17M (8%)</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:8%;"></div></div>
+        </div>
+        <div>
+          <div class="flex items-baseline justify-between">
+            <span class="bar-label">Contingency</span><span class="bar-sum">$8M (4%)</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:4%;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note -->
+    <div class="text-muted" style="font-size:var(--fs-small); font-style:italic; line-height:1.5;">A dedicated team of 14 has been building the Betrayal Engine since day one — the project’s riskiest and most valuable system.</div>
+
+  </div>
+</div>
+</body>
+</html>

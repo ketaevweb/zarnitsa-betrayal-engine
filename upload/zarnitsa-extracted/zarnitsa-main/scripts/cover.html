@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    @page { size: 794px 1123px; margin: 0; }
+    :root {
+      /* Cascade palette: intent=tension, mode=dark, harmony=complementary, seed=7 */
+      --c-bg: #131111;
+      --c-accent: #d34848;
+      --c-text: #f2f0f0;
+      --c-muted: #8e8484;
+      --c-mid: #4c3535;
+      --c-surface: #201818;
+      --c-gold: #c0a774;
+      --c-footer: #6e6464;
+    }
+    html, body {
+      margin: 0; padding: 0;
+      width: 794px; height: 1123px;
+      background: var(--c-bg);
+      color: var(--c-text);
+      font-family: 'Inter', 'FreeSans', sans-serif;
+    }
+    @media screen {
+      html { height: auto; display: flex; justify-content: center; min-height: 100vh; background: var(--c-bg); }
+      body { transform-origin: top center; scale: min(1, calc(100vw / 794), calc(100vh / 1123)); margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    }
+    .cover { width: 794px; height: 1123px; position: relative; box-sizing: border-box; }
+
+    /* Layer 1 — background (clipped) */
+    .layer-bg {
+      position: absolute; inset: 0;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .glow-a {
+      position: absolute;
+      left: 0%; top: 0%;
+      width: 70%; height: 45%;
+      background: radial-gradient(ellipse at 30% 30%, rgba(211, 72, 72, 0.07), rgba(211, 72, 72, 0) 65%);
+    }
+    .glow-b {
+      position: absolute;
+      right: 0%; bottom: 0%;
+      width: 75%; height: 50%;
+      background: radial-gradient(ellipse at 70% 70%, rgba(192, 167, 116, 0.05), rgba(192, 167, 116, 0) 60%);
+    }
+
+    /* Layer 2 — structure */
+    .layer-lines { position: absolute; inset: 0; z-index: 2; }
+    .vline {
+      position: absolute;
+      left: 57px; top: 76px; bottom: 76px;
+      width: 2.5px;
+      background: var(--c-accent);
+    }
+    .vline-gold {
+      position: absolute;
+      left: 57px; top: 76px;
+      width: 2.5px; height: 96px;
+      background: var(--c-gold);
+    }
+
+    /* Layer 3 — content */
+    .layer-text { position: absolute; inset: 0; z-index: 3; }
+    .content { position: absolute; left: 104px; right: 70px; top: 0; bottom: 0; }
+
+    .label {
+      position: absolute; top: 130px;
+      font-size: 10pt; font-weight: 400;
+      color: var(--c-gold);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+    .title {
+      position: absolute; top: 205px;
+      font-family: 'Playfair Display', 'FreeSerif', serif;
+      font-size: 72pt; font-weight: 900;
+      line-height: 1.1;
+      color: var(--c-text);
+      max-width: 600px;
+      letter-spacing: 2px;
+    }
+    .tagline {
+      position: absolute; top: 368px;
+      font-family: 'Playfair Display', 'FreeSerif', serif;
+      font-style: italic;
+      font-size: 16pt; font-weight: 400;
+      color: var(--c-accent);
+      max-width: 560px;
+      line-height: 1.45;
+    }
+    .summary {
+      position: absolute; top: 452px;
+      font-size: 12pt; font-weight: 300;
+      line-height: 1.75;
+      color: var(--c-muted);
+      max-width: 520px;
+    }
+    .meta-block {
+      position: absolute; top: 668px;
+      max-width: 580px;
+    }
+    .meta-line {
+      font-size: 12pt;
+      color: var(--c-text);
+      font-weight: 400;
+      line-height: 1.5;
+      margin-bottom: 18px;
+      max-width: 580px;
+    }
+    .meta-line b {
+      color: var(--c-gold);
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .footer {
+      position: absolute;
+      bottom: 76px; left: 104px; right: 70px;
+      display: flex; justify-content: space-between;
+      font-size: 9pt;
+      color: var(--c-footer);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <div class="layer-bg">
+      <div class="glow-a"></div>
+      <div class="glow-b"></div>
+    </div>
+    <div class="layer-lines">
+      <div class="vline"></div>
+      <div class="vline-gold"></div>
+    </div>
+    <div class="layer-text">
+      <div class="content">
+        <div class="label">Game Design Document</div>
+        <div class="title">ЗАРНИЦА</div>
+        <div class="tagline">Обет держит ватагу.<br>Ватага держит мир.</div>
+        <div class="summary">
+          Сюжетная action-RPG уровня AAA в тёмном славянском фэнтези: земля Оковье
+          умирает вместе с телом убитого бога, и каждую ночь из земли поднимается
+          Мгла. Игрок ведёт ватагу обетников — спутники помнят каждое решение,
+          преследуют свои цели и способны на настоящее предательство.
+        </div>
+        <div class="meta-block">
+          <div class="meta-line"><b>ЖАНР</b> — сюжетная action-RPG с открытым миром и тактической паузой</div>
+          <div class="meta-line"><b>ФОРМАТ</b> — синглплеер-ядро и кооперативные вылазки на 2–4 игрока</div>
+          <div class="meta-line"><b>ПЛАТФОРМЫ</b> — PC, консоли нового поколения, облако</div>
+          <div class="meta-line"><b>ОБЪЁМ</b> — около 100 часов основного и побочного контента</div>
+        </div>
+      </div>
+      <div class="footer">
+        <span>Версия 1.0 · Концепт для портфолио</span>
+        <span>Октябрь 2026</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

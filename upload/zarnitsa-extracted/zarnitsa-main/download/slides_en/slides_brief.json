@@ -1,0 +1,117 @@
+{
+  "design": {
+    "title": "ZARNITSA — Publisher Pitch Deck",
+    "style_name": "Dark premium · parchment and ink (GDD brand)",
+    "palette": { "background": "#131111", "primary": "#e8dfc8", "accent": "#a82727" },
+    "typography": { "heading": "Playfair Display", "body": "Inter", "numeric": "Playfair Display" },
+    "reference": "ZARNITSA GDD cover: charcoal black, ivory, crimson accent; serif display against grotesque body"
+  },
+  "global_css_path": "/home/z/my-project/download/slides_en/global.css",
+  "slides_dir": "/home/z/my-project/download/slides_en",
+  "language": "en",
+  "speaker_notes": "none",
+  "slides": [
+    {
+      "title": "Cover",
+      "layout": "cover",
+      "output_path": "/home/z/my-project/download/slides_en/slide_01.html",
+      "task_brief": "Full-screen cover. Background: local art_title.png (relative path, object-cover over the whole 1280x720 slide), with a darkening gradient at bottom and left (.scrim-b plus an extra left darkening layer for text contrast). Content anchored bottom-left with 72px padding: kicker 'PUBLISHER PITCH · 2026' (letter-spacing 0.3em, var(--gold), var(--fs-small)); title 'ZARNITSA' (font-heading, ~112px, weight 800, letter-spacing 0.06em, var(--primary)); italic tagline quote below (~21px, primary 90%): 'The oath binds the vataga. The vataga holds the world. Betray the oath — and the world falls first.' Then a thin .rule-gold ~520px wide, then a meta row (var(--fs-small), var(--muted)): 'Narrative action-RPG · Single-player + co-op 2–4 · PC / next-gen consoles / cloud · Release 2031'. Bottom-right small (var(--fs-micro), var(--muted)): 'Vataga Games'. Nothing else."
+    },
+    {
+      "title": "Hook: logline and pillars",
+      "layout": "key message + split image",
+      "output_path": "/home/z/my-project/download/slides_en/slide_02.html",
+      "task_brief": "Hook slide, split: left content (~62%), right full-height image https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/551f4e165d74.jpg (object-cover, .scrim-l on top to merge with background). Left: kicker 'LOGLINE' (letter-spacing, var(--accent-bright)); headline (font-heading, var(--fs-h1)): 'The god is dead. Night is coming. The Vataga remembers.'; paragraph (var(--fs-body), max 62ch): 'Thirty years ago, people killed the last god — Zlatoglav. Ever since, the Mgla rises from the earth each night, and the country grows rich digging gold out of his body. Every ingot unearthed brings the eternal night closer. The player is the Oathbound Ataman who leads a vataga of sworn brothers: six companions with their own memory, hidden agendas and a very real capacity for betrayal.' Below, a 2x2 grid of four pillars (.card, title var(--fs-h3) font-heading + line var(--fs-small) var(--muted)): 'Memory of the brotherhood — choices stay in every companion's memory'; 'A world worth preparing for — victory is earned before the battle: scouting, oils, the hour you march'; 'Morality without a judge — no good/evil meter, only consequences that ripen'; 'The night as an element — trade and politics by day, survival by night'. Bottom stats row of 4 values (number font-num var(--fs-h2) var(--gold), caption var(--fs-micro) var(--muted)): '100+ hours of content', '6 companions with memory', '5 regions of Okovye', '4 global endings'."
+    },
+    {
+      "title": "Section 01 · The Game",
+      "layout": "section header",
+      "output_path": "/home/z/my-project/download/slides_en/slide_03.html",
+      "task_brief": "Purely typographic divider, no images. Left, vertically centered, 72px padding: huge numeral '01' (font-num, ~170px, var(--accent), opacity 0.85), to its right: label 'SECTION 01 / 03' (letter-spacing 0.35em, var(--muted), var(--fs-small)), headline 'THE GAME' (font-heading, 72px, weight 700), tagline (var(--fs-h3), var(--muted), italic): 'The world of Okovye, the vataga, and the Betrayal Engine'. Under the headline a .rule 120px wide. Bottom-right small (var(--fs-micro), var(--muted)): 'ZARNITSA · publisher pitch'."
+    },
+    {
+      "title": "USP: the Betrayal Engine",
+      "layout": "bento grid + portrait strip",
+      "output_path": "/home/z/my-project/download/slides_en/slide_04.html",
+      "task_brief": "USP slide. Kicker 'UNIQUE SELLING POINT' (letter-spacing, var(--accent-bright)). Headline (font-heading, var(--fs-h1)): 'Companions who remember everything'. Paragraph (var(--fs-body)): 'In existing RPGs, companions are either eternal, or their attitude shifts by a single number, or they betray on script. In Zarnitsa, betrayal is a simulation: every companion carries a memory journal, a personal rupture threshold and a goal pursued even off-screen. The game continuously checks three conditions, and when they converge, the companion acts against the ataman — from sabotaging gear to a Night of Knives.' Row of three .card cards (title font-heading var(--fs-h3), text var(--fs-small) var(--muted)): 'Memory journal — four kinds of tags: honor · blood · gold · faith'; 'Personal threshold — five irreversible stages: from first doubt to the Night of Knives'; 'Circumstance node — accumulated grudge, opportunity and incentive must converge at once'. Below, a contrast row of 4 chips (.chip, var(--fs-small)): 'The Witcher 3 — companions as set dressing', 'Baldur’s Gate 3 — the world sleeps outside the party', 'Dragon Age — a single approval number', and the fourth chip highlighted (.card-accent, text var(--primary)): 'ZARNITSA — betrayal as a simulation'. Bottom: strip of 6 equal-height portraits ~120px (local relative paths: c_ratmir.png, c_vasilisa.png, c_gavrila.png, c_khodata.png, c_odinets.png, c_miluta.png; .img-frame, object-cover), under the strip a caption (var(--fs-micro), var(--muted)): '6 companions × 5 stages × 4 endings — a matrix you cannot see in a single playthrough'."
+    },
+    {
+      "title": "World: Okovye",
+      "layout": "split text+image",
+      "output_path": "/home/z/my-project/download/slides_en/slide_05.html",
+      "task_brief": "Split: left ~40% width full-height image https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a9ea14851700.jpeg (object-cover, .scrim-r on top). Right content: kicker 'SETTING'; headline (font-heading, var(--fs-h1)): 'Okovye: a country living on the body of a god'; paragraph: 'Dark Slavic fantasy with no orcs and no elves: the nav, the Oathbound, rumor-mongering taverns and the Gilded Decree. By day Okovye trades, litigates and weaves politics; by night the world belongs to the Mgla. The player chooses the hour of leaving camp — and pays for the choice.' Two fact lines with gold markers (var(--fs-body)): '5 regions — from the Polesie marshes to the drowned Still Sea'; 'The Mgla — the world’s tension meter: gold dug from the god’s body brings the eternal night closer'. Block 'Six factions': .chip chips with colored .dot dots — Oathbound Vatagas (#a82727), Gilded Decree (#c0a774), Seer Circles (#7d94b0), Courts of Nav (#5e8c6a), Princes’ Council (#9a7b52), Children of Dawn (#8a5aa8). Block 'Bestiary of the nav': five small .chip tags: 'Mglenik', 'Uporen', 'Kostyanitsa', 'Zarnik', 'Mgla-Vedun'."
+    },
+    {
+      "title": "Loop: contract → camp → night",
+      "layout": "three column flow",
+      "output_path": "/home/z/my-project/download/slides_en/slide_06.html",
+      "task_brief": "Loop slide. Kicker 'GAMEPLAY LOOP'. Headline (font-heading, var(--fs-h1)): 'Contract → Camp → Night'. Three equal .card columns, each: large number (font-num, ~44px, var(--accent-bright)), phase name (font-heading, var(--fs-h3), uppercase with tracking), text (var(--fs-body)): 1 'CONTRACT' — 'A job board with bargaining: price, deadlines, currency, witnesses. Terms shift in dialogue — witnesses remember the deal, and a stingy haggle comes back through a companion’s memory journal.'; 2 'CAMP' — 'One conversation before nightfall: the raid party — up to three brothers; gear: oils, traps, strings. Gifts and oaths stay in the vataga’s memory.'; 3 'NIGHT' — 'A real-time raid into the Mgla under the Oath Pause. After the fight — the Right of Speech: a brother may step out of the shadow with a grievance, and the ataman answers.' Between columns, text arrows '→' in var(--gold) (not SVG). Bottom wide .card-accent banner (var(--fs-body)): 'Between nights the world lives without the player: factions make their moves, rumors spread through taverns, the Mgla gathers strength.'"
+    },
+    {
+      "title": "Combat: Oath Pause and Zaritsa",
+      "layout": "split text+screenshot",
+      "output_path": "/home/z/my-project/download/slides_en/slide_07.html",
+      "task_brief": "Combat system slide. Left content (~55%): kicker 'COMBAT SYSTEM'; headline (font-heading, var(--fs-h1)): 'Real time under the Oath Pause'; paragraph: 'The spacebar freezes time at any moment: the ataman issues orders to the brothers, picks a Zaritsa form and resumes the fight. Reflex matters less than half an hour of preparation — “run in and swing” tactics are punished naturally.' A 2x2 grid of Zaritsa form cards (.card, colored dot at left): '1 · White — five empowered strikes in a row'; '2 · Blue — a slowing field around the point of the throw'; '3 · Gold — shield and healing for the whole vataga'; '4 · Red — detonates the accumulated Mgla across the whole causeway' (last card with .card-accent border). Bottom-left line (var(--fs-small), var(--muted)): 'Heat and overload: every form heats the power — in overload, strikes burn your own. Oathfire holds the line: the nav skirt the flame in a wide arc.' Right (~45%) screenshot shot_pause.png (local relative path) in .img-frame ~560px tall (object-cover, object-position: top), below it a caption (var(--fs-micro), var(--muted)): 'Prototype: the Oath Pause, orders to the brothers and four Zaritsa forms'."
+    },
+    {
+      "title": "The Vataga: six companions",
+      "layout": "portrait card grid",
+      "output_path": "/home/z/my-project/download/slides_en/slide_08.html",
+      "task_brief": "Companions slide. Kicker 'THE VATAGA'; headline (font-heading, var(--fs-h1)): 'The six who can betray'. A 3x2 grid of dense .card cards (12px padding): in each, a ~84px square portrait at left (.img-frame, object-cover), at right: name (font-heading, var(--fs-h3)), role (var(--fs-micro), var(--muted), uppercase with tracking), betrayal line in italic (var(--fs-small), var(--accent-bright)). Data verbatim: Ratmir · 'Warden · frontline defense' · 'Leads the brothers away if the vataga is sacrificed for profit' · c_ratmir.png; Vasilisa · 'Seeress · heat support' · 'Defects to the Seer Circles if the vault is razed' · c_vasilisa.png; Gavrila · 'Marksman · logistics' · 'Sells the ataman’s plans for gold' · c_gavrila.png; Khodata · 'Pactmaker · control' · 'Joins the Courts of Nav after a massacre of the nav' · c_khodata.png; Odinets · 'Archer · scouting' · 'An engineered heresy: a separate story branch' · c_odinets.png; Miluta · 'Chanter · chronicler' · 'A slanderous chronicle against the ataman' · c_miluta.png. All portrait paths local relative. Bottom line (var(--fs-small), var(--muted)): 'Each memory holds four kinds of tags: honor · blood · gold · faith. Tags move a companion up the rupture ladder — from doubt to the Night of Knives.'"
+    },
+    {
+      "title": "Co-op 2–4: raids",
+      "layout": "split text+image",
+      "output_path": "/home/z/my-project/download/slides_en/slide_09.html",
+      "task_brief": "Co-op slide. Right ~38% width full-height image https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/259a175b278c.jpg (object-cover, .scrim-l on top). Left content: kicker 'CO-OP'; headline (font-heading, var(--fs-h1)): 'Raids for 2–4 that stay in the chronicle'; paragraph: 'A hybrid without compromise: the single-player campaign carries the narrative, while co-op raids are assembled from day contracts and play out in the night layer. Cross-play across all platforms from day one. A raid is preserved as a “line” in both players’ chronicles — co-op doesn’t discard the story, it writes into it.' A fact card .card-elev with a large number: '×8' (font-num, ~64px, var(--gold)) and text (var(--fs-small)): 'how many times better a typical co-op game sells than a non-co-op on Steam: about 40,000 copies versus 5,000 (VGI · Sensor Tower)'. Bottom line (var(--fs-small), var(--muted)): 'Launch goal: at least 18% of players complete at least one raid.'"
+    },
+    {
+      "title": "Section 02 · Market",
+      "layout": "section header",
+      "output_path": "/home/z/my-project/download/slides_en/slide_10.html",
+      "task_brief": "Typographic divider, identical composition to slide 3, no images. Huge numeral '02' (font-num, ~170px, var(--accent), opacity 0.85), label 'SECTION 02 / 03', headline 'MARKET' (font-heading, 72px), italic tagline: 'Audience, competitors and the sales model'. .rule 120px. Bottom right: 'ZARNITSA · publisher pitch' (var(--fs-micro))."
+    },
+    {
+      "title": "Audience and demand",
+      "layout": "stats row",
+      "output_path": "/home/z/my-project/download/slides_en/slide_11.html",
+      "task_brief": "Market slide. Kicker 'AUDIENCE & DEMAND'; headline (font-heading, var(--fs-h1)): 'A proven market, an open niche'; paragraph (var(--fs-body)): 'The core is players aged 20–40 who grew up on The Witcher 3 and Baldur’s Gate 3: story, choices, long campaigns. The secondary segment is streamers: every vataga has its own betrayal, and every Night of Knives is a ready-made broadcast.' A row of 4 stat cards .card (number font-num ~46px var(--gold), caption var(--fs-small) var(--muted)): '50+ million — The Witcher 3: the benchmark of story-driven RPGs'; '20+ million — Baldur’s Gate 3 as of December 2025 (Bloomberg)'; '30 million — It Takes Two: the co-op phenomenon; Hazelight’s catalog tops 50 million (A Way Out 13M, Split Fiction 7M)'; '100K in 3 weeks — Black Book: demand for a Slavic setting (Morteshka, 2021)'. Bottom banner with 3px left accent border var(--accent) (var(--fs-body), italic): 'The “adult dark fantasy with companions” niche is open now that Dragon Age has moved on to multiplayer experiments.'"
+    },
+    {
+      "title": "Competitive positioning",
+      "layout": "comparison table",
+      "output_path": "/home/z/my-project/download/slides_en/slide_12.html",
+      "task_brief": "Competitors slide. Kicker 'COMPETITIVE POSITIONING'; headline (font-heading, var(--fs-h1)): 'We take the combination, and keep the niche'. Table (HTML table, 100% width, var(--fs-small), cells padding 10–12px, 1px dividers var(--line), header row var(--fs-micro) uppercase var(--muted)) — 4 columns 'Game / Strength / What’s missing / Our answer', rows verbatim: 'The Witcher 3 | Dense quests, adult moral dilemmas | Companions are set dressing, betrayal is scripted | Companions are the core of the simulation'; 'Baldur’s Gate 3 | Freedom of choice, reputation | The world doesn’t live outside the party; no autonomous goals | Companion goals execute off-screen'; 'Dragon Age | Character ensemble, banter | A single approval number; ruptures are cosmetic | Five irreversible stages of rupture'; 'Kingdom Come 2 | Simulation of preparation and daily life | No party mechanics, no story-driven vataga | Preparation + ensemble in one loop'. Game names — font-heading var(--fs-h3). The 'Our answer' column with a light fill rgba(168,39,39,0.08) and text var(--primary). Bottom line (var(--fs-body), var(--gold), italic): 'World scale — CD Projekt RED. Simulation density — Larian. Ensemble drama — BioWare. The memory and betrayal of comrades — ours alone.'"
+    },
+    {
+      "title": "Sales model and life cycle",
+      "layout": "stats + cycle cards",
+      "output_path": "/home/z/my-project/download/slides_en/slide_13.html",
+      "task_brief": "Sales model slide. Kicker 'SALES MODEL'; headline (font-heading, var(--fs-h1)): 'Premium pricing, long life cycle'. Top row of 3 .card cards (value font-num var(--fs-h2) var(--gold), caption var(--fs-small) var(--muted)): '$69.99 — base game price'; 'PC · consoles · cloud — release platforms'; 'Cross-play — one pool from day one'. Block 'Life cycle' — three cards in a row (not a graphical timeline), each with a month label (var(--fs-micro), var(--accent-bright), uppercase): 'Month 4 — “Winter Oaths” · free patch campaign'; 'Month 10 — DLC “Children of Dawn” · the next chapter of the vataga’s arc'; 'Month 20 — DLC “The Still Deep” · the sunken layer of the Still Sea'. Stats row of 3 values (number font-num var(--fs-h2), caption var(--fs-micro)): '9M copies — year-one plan', '20M — life-cycle plan', '5.2M — break-even point (net price $42)'. Bottom KPI line (var(--fs-micro), var(--muted)): 'Completion ≥ 38% · Sessions 75+ minutes · Reach rupture stage IV ≥ 55% · Co-op players ≥ 18% · Press 85+'."
+    },
+    {
+      "title": "Section 03 · The Deal",
+      "layout": "section header",
+      "output_path": "/home/z/my-project/download/slides_en/slide_14.html",
+      "task_brief": "Typographic divider, identical composition to slides 3 and 10, no images. Huge numeral '03' (font-num, ~170px, var(--accent), opacity 0.85), label 'SECTION 03 / 03', headline 'THE DEAL' (font-heading, 72px), italic tagline: 'Prototype, production plan, budget and terms'. .rule 120px. Bottom right: 'ZARNITSA · publisher pitch' (var(--fs-micro))."
+    },
+    {
+      "title": "Prototype: vertical slice",
+      "layout": "split text+screenshots",
+      "output_path": "/home/z/my-project/download/slides_en/slide_15.html",
+      "task_brief": "Readiness slide. Left content (~46%): kicker 'READINESS'; headline (font-heading, var(--fs-h1)): 'The vertical slice is already playable'; paragraph: 'ZARNITSA · Three Nights is a working prototype of the core: three days and three nights, all four systems in one build. Real time with the Oath Pause and four Zaritsa forms; the companions’ rupture ladder from doubt to the Night of Knives; the Right of Speech after battle; factions, gold and the Mgla as world-scale resources.' Checklist of 3 items (marker — ✦ symbol in var(--gold), var(--fs-body)): 'Full golden path verified: title → contracts → three nights → finale'; 'Three finales across three lines of ataman behavior'; 'Six companions with memory, tags and the Right of Speech'. Bottom .card-accent banner (var(--fs-small)): 'Build link and the full GDD (30 pages) — available on request.' Right (~54%) two screenshots stacked, each in .img-frame ~280px tall (local relative paths, object-cover): top shot_camp.png with caption 'Camp: the vataga’s memory, conversation and raid lineup', bottom shot_pause.png with caption 'Night: the Oath Pause, orders and four Zaritsa forms' (captions var(--fs-micro), var(--muted))."
+    },
+    {
+      "title": "Production plan and budget",
+      "layout": "phase cards + budget bars",
+      "output_path": "/home/z/my-project/download/slides_en/slide_16.html",
+      "task_brief": "Plan slide. Kicker 'PRODUCTION PLAN'; headline (font-heading, var(--fs-h1)): 'Five years, five phases — $210M'. A row of 5 narrow .card cards (year font-num var(--fs-h2) var(--gold); name font-heading var(--fs-small) uppercase; text var(--fs-micro) var(--muted); headcount at bottom var(--fs-micro) var(--accent-bright)): '2027 · Pre-production · vertical slice: Polesie, combat, vataga memory · 90–120 staff'; '2028 · Production I · two regions, full bestiary, Betrayal Engine v1 · 240–300 staff'; '2029 · Production II · all five regions, voiced story skeleton, co-op alpha · 360–420 staff'; '2030 · Alpha & beta · content lock, balancing, co-op beta, localization · 420–450 staff'; '2031 · Release · optimization, certification, marketing campaign · 400 → 150 staff'. Below, block 'Budget: $210M' — 6 horizontal CSS bars (div filled var(--accent) at varying widths by percentage, 8px height, track background var(--bg-3), label at left var(--fs-small), sum at right font-num var(--fs-small) var(--gold)): 'Content — $97M (46%)', 'Marketing — $44M (21%)', 'Engine & co-op tech — $25M (12%)', 'Live support & first DLC — $19M (9%)', 'Audio & 6 voice-over languages — $17M (8%)', 'Contingency — $8M (4%)'. Bottom line (var(--fs-small), var(--muted), italic): 'A dedicated team of 14 has been building the Betrayal Engine since day one — the project’s riskiest and most valuable system.'"
+    },
+    {
+      "title": "The Ask",
+      "layout": "closing",
+      "output_path": "/home/z/my-project/download/slides_en/slide_17.html",
+      "task_brief": "Final ask slide. Kicker 'THE ASK'; headline (font-heading, var(--fs-h1)): 'What we are asking for'. Main .card-elev banner (var(--fs-body), max 60 chars per line): 'Financing of full production — $210 million, staged across the 2027–2031 phases. The publisher leads marketing, distribution and certification; the studio owns narrative and the Betrayal Engine.' Two columns below: left .card 'Vataga Games studio' (var(--fs-small)): '220 full-time specialists by mid-production: narrative 28 · design 46 · programming 60 · art 70 · QA and localization 16. Outsourcing — up to 230 seats at peak.'; right .card 'Next steps' — three numbered lines (number font-num var(--accent-bright)): '1 · Prototype demo and GDD walkthrough — 60 minutes'; '2 · Access to the full financial model and the betrayal matrix'; '3 · Term sheet by the end of Q1 2027 — pre-production starts in summer'. Bottom center contact line (var(--fs-small), var(--muted)): 'Vataga Games · hello@vataga.games · pitch 2026'."
+    }
+  ]
+}

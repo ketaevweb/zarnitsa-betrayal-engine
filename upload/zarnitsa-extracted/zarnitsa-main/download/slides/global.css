@@ -1,0 +1,78 @@
+/* ЗАРНИЦА · питч-дек — тёмный премиум (GDD-бренд) */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Inter:wght@300..800&display=swap');
+
+:root {
+  /* палитра */
+  --bg: #131111;
+  --bg-2: #1b1817;
+  --bg-3: #241f1b;
+  --primary: #e8dfc8;
+  --muted: #a89e88;
+  --accent: #a82727;
+  --accent-bright: #c94b4b;
+  --gold: #c0a774;
+  --line: rgba(232, 223, 200, 0.14);
+  --line-strong: rgba(232, 223, 200, 0.28);
+
+  /* типографика: только токены, без готовых классов */
+  --font-heading: 'Playfair Display', 'Georgia', serif;
+  --font-body: 'Inter', 'Segoe UI', sans-serif;
+  --font-num: 'Playfair Display', 'Georgia', serif;
+
+  --fs-display: 96px;
+  --fs-h1: 46px;
+  --fs-h2: 28px;
+  --fs-h3: 19px;
+  --fs-body: 15px;
+  --fs-small: 12.5px;
+  --fs-micro: 10.5px;
+}
+
+html, body { margin: 0; padding: 0; background: var(--bg); }
+
+/* холст слайда */
+.slide {
+  width: 1280px;
+  height: 720px;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+  color: var(--primary);
+  font-family: var(--font-body);
+}
+
+/* поверхности */
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.card-elev { background: var(--bg-3); border: 1px solid var(--line-strong); border-radius: 8px; }
+.card-accent { background: rgba(168, 39, 39, 0.10); border: 1px solid rgba(168, 39, 39, 0.45); border-radius: 8px; }
+
+/* линии и мелочи */
+.rule { height: 2px; background: var(--accent); border: 0; }
+.rule-gold { height: 1px; background: var(--gold); border: 0; opacity: 0.55; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+
+/* рамки для изображений */
+.img-frame { border: 1px solid var(--line-strong); overflow: hidden; background: var(--bg-2); }
+.img-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* затемнение фоновых артов */
+.scrim-b { background: linear-gradient(to top, rgba(19,17,17,0.96) 0%, rgba(19,17,17,0.55) 45%, rgba(19,17,17,0.18) 100%); }
+.scrim-l { background: linear-gradient(to right, rgba(19,17,17,0.97) 0%, rgba(19,17,17,0.62) 42%, rgba(19,17,17,0.10) 100%); }
+.scrim-r { background: linear-gradient(to left, rgba(19,17,17,0.97) 0%, rgba(19,17,17,0.62) 42%, rgba(19,17,17,0.10) 100%); }
+
+/* текстовые утилиты не-типографского характера */
+.text-muted { color: var(--muted); }
+.text-accent { color: var(--accent-bright); }
+.text-gold { color: var(--gold); }
