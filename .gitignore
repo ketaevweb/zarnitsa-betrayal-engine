@@ -52,3 +52,11 @@ prompt
 server.log
 # Skills directory
 /skills/
+# local work artifacts
+/upload/
+/download/
+/.zscripts/
+/.z-ai/
+/db/
+/worklog.md
+/agent-ctx/

@@ -1,6 +1,0 @@
-# Godot 4
-.godot/
-/export/
-/export_presets.cfg.bak
-*.tmp
-.DS_Store
