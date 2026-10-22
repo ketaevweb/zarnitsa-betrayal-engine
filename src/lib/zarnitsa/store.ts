@@ -7,6 +7,7 @@
 import { create } from "zustand";
 import {
   applyChoice,
+  applyWhisper,
   buildEnding,
   debugDrainAll,
   debugReset,
@@ -14,6 +15,7 @@ import {
   withPhase,
   type SpeechOption,
 } from "./engine";
+import { WHISPERS } from "./whispers";
 import {
   NIGHT_COUNT,
   NIGHT_TITLES,
@@ -42,6 +44,7 @@ import {
   sfxNeedle,
   sfxPickup,
   sfxReveal,
+  sfxWhisper,
 } from "./audio";
 
 export type Screen = "title" | "play" | "event" | "speech" | "dawn" | "end";
@@ -209,6 +212,10 @@ interface ZarnitsaStore {
   hint: string | null;
   /** летопись на весь экран (J) */
   journalOpen: boolean;
+  /** шёпот Мглы (M1.0) — активный соблазн */
+  whisper: { id: string } | null;
+  /** принятые/отвергнутые шёпоты этой ночи (не больше двух за ночь) */
+  whisperDone: string[];
 
   start: () => void;
   toTitle: () => void;
@@ -236,6 +243,10 @@ interface ZarnitsaStore {
   feedFire: () => void;
   setHint: (text: string | null) => void;
   toggleJournal: () => void;
+  /** открыть шёпот Мглы (M1.0) */
+  openWhisper: (id: string) => void;
+  /** принять или отвергнуть шёпот */
+  resolveWhisper: (accept: boolean) => void;
 }
 
 function endingOf(state: GameState): Ending {
@@ -282,6 +293,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   fire: freshFire(85),
   hint: null,
   journalOpen: false,
+  whisper: null,
+  whisperDone: [],
 
   start: () => {
     audioStart();
@@ -294,6 +307,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       state: fresh,
       night: 1,
       doneToday: [],
+      whisperDone: [],
       activeEvent: null,
       pendingDoneId: null,
       talkMenu: null,
@@ -358,8 +372,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
 
   /** клавиша E: маркер, спутник, костёр или поленница */
   interact: () => {
-    const { screen, nearest } = get();
-    if (screen !== "play" || !nearest) return;
+    const { screen, nearest, whisper } = get();
+    if (screen !== "play" || !nearest || whisper) return;
     if (nearest.kind === "event") get().openEvent(nearest.id);
     else if (nearest.kind === "fire") get().feedFire();
     else if (nearest.kind === "wood") get().pickupWood(nearest.id);
@@ -514,6 +528,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       screen: "play",
       night: nextNight,
       doneToday: [],
+      whisperDone: [],
       activeEvent: null,
       pendingDoneId: null,
       nearest: null,
@@ -578,6 +593,50 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   toggleJournal: () => {
     if (get().screen !== "play") return;
     set({ journalOpen: !get().journalOpen });
+  },
+
+  openWhisper: (id) => {
+    const { screen, whisper, journalOpen } = get();
+    if (screen !== "play" || whisper || journalOpen) return;
+    sfxWhisper();
+    set({ whisper: { id } });
+  },
+
+  resolveWhisper: (accept) => {
+    const w = get().whisper;
+    if (!w) return;
+    const def = WHISPERS.find((x) => x.id === w.id);
+    set({ whisper: null, whisperDone: [...get().whisperDone, w.id] });
+    if (!def) return;
+
+    const state = get().state;
+    const before = snapshotTrust(state);
+    let next = state;
+    if (accept) {
+      const targets =
+        def.targets === "all"
+          ? Object.values(state.party)
+              .filter((p) => !p.gone)
+              .map((p) => p.id)
+          : def.targets;
+      next = applyWhisper(state, targets, def.tag, def.valence, def.label);
+      // принятие — укол: диссонанс и тряска
+      sfxNeedle();
+      set({ shakeAt: performance.now() });
+    } else if (def.rejTargets && def.rejTag && def.rejValence != null && def.rejLabel) {
+      next = applyWhisper(state, def.rejTargets, def.rejTag, def.rejValence, def.rejLabel);
+      sfxReveal();
+    }
+
+    const diff = trustDiff(before, next);
+    get().pushFloaters(diff);
+    set({ state: next });
+    if (next.speechTarget) {
+      set({ screen: "speech", talkMenu: null, activeEvent: null });
+    } else if (next.finished) {
+      clearSave();
+      set({ screen: "end", ending: endingOf(next), hasSave: false });
+    }
   },
 
   pushFloaters: (diff) => {

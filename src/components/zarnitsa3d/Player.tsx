@@ -10,6 +10,7 @@ import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { COMPANIONS } from "@/lib/zarnitsa/data";
 import { WOOD_PILES, dreadLevel, mglLive, watcherTargetR } from "@/lib/zarnitsa/camp3d";
+import { pickWhisper } from "@/lib/zarnitsa/whispers";
 import { setDread, sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
 import { addFootprint, companionLive, touchInput } from "./campLife";
 
@@ -18,6 +19,10 @@ export const keys = new Set<string>();
 
 const POS = new THREE.Vector3(0, 0, 7);
 let ANGLE = 0;
+
+/** копилка стужи для шёпотов Мглы (M1.0): тик при dread ≥ 0.45, оттек при тепле */
+let dreadAccum = 0;
+let lastWhisperAt = 0;
 
 /** текущая позиция игрока (для спутников) */
 export function playerPos(): THREE.Vector3 {
@@ -49,7 +54,7 @@ export function Player() {
   useFrame(({ camera }, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
     const store = useZarnitsa.getState();
-    const canMove = store.screen === "play" && !store.journalOpen;
+    const canMove = store.screen === "play" && !store.journalOpen && !store.whisper;
 
     // костёр горит, пока идёт ночь
     store.tickFire(dt);
@@ -167,6 +172,36 @@ export function Player() {
       const tr = watcherTargetR(store.night, store.fire.fuel);
       if (tr < mglLive.closest) mglLive.closest = tr;
       setDread(dreadLevel(store.fire.fuel));
+    }
+
+    // Шёпоты Мглы (M1.0): долгая стужа туманит разум — до двух за ночь
+    if (
+      store.screen === "play" &&
+      !store.journalOpen &&
+      !store.whisper &&
+      !store.activeEvent &&
+      !store.talkMenu &&
+      !store.intro &&
+      !store.pendingDoneId
+    ) {
+      const dl = dreadLevel(store.fire.fuel);
+      if (dl >= 0.45) {
+        dreadAccum += dt;
+        if (
+          dreadAccum > 22 &&
+          store.whisperDone.length < 2 &&
+          performance.now() - lastWhisperAt > 90000
+        ) {
+          const w = pickWhisper(store.night, store.whisperDone, store.state);
+          if (w) {
+            lastWhisperAt = performance.now();
+            dreadAccum = 0;
+            store.openWhisper(w.id);
+          }
+        }
+      } else {
+        dreadAccum = Math.max(0, dreadAccum - dt * 0.6);
+      }
     }
 
     // шёпот Мглы: при гаснущем костре часто, на III ночи — сам по себе

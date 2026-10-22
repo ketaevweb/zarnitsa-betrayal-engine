@@ -579,6 +579,23 @@ export function debugDrainAll(state: GameState, delta: number): GameState {
   return next;
 }
 
+/**
+ * Шёпот Мглы (M1.0): третья сила действует через память отряда —
+ * клевета (lie), жестокость (cruelty), отступничество (oath).
+ * Память вечна, лестница и Право слова работают как обычно.
+ */
+export function applyWhisper(
+  state: GameState,
+  targets: string[],
+  tag: TagId,
+  valence: number,
+  label: string,
+): GameState {
+  const next = structuredClone(state);
+  for (const cid of targets) applyMemory(next, cid, tag, valence, label);
+  return next;
+}
+
 export function debugReset(): GameState {
   idCounter = 0;
   return createInitialState();

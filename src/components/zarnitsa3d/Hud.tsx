@@ -8,6 +8,7 @@ import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
 import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
 import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
 import { PILLAR_FUEL, mglLive } from "@/lib/zarnitsa/camp3d";
+import { WHISPERS } from "@/lib/zarnitsa/whispers";
 import {
   audioEnabled,
   audioToggle,
@@ -483,7 +484,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M0.9 «Кольцо стужи»
+        3D-прототип · M1.0 «Шёпоты Мглы»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -563,6 +564,52 @@ function IntroOverlay() {
           Мгла слушает
         </p>
       </div>
+    </div>
+  );
+}
+
+/* ---------------- шёпот Мглы (M1.0) ---------------- */
+
+function WhisperOverlay() {
+  const w = useZarnitsa((s) => s.whisper);
+  const resolve = useZarnitsa((s) => s.resolveWhisper);
+  const def = WHISPERS.find((x) => x.id === w?.id);
+  const typed = useTypedText(def ? [def.text] : [""]);
+  if (!w || !def) return null;
+  const typing = typed.shown < typed.full.length;
+  return (
+    <div className="pointer-events-auto absolute inset-0 z-[36] flex items-center justify-center bg-black/72 p-4 backdrop-blur-[3px]">
+      <section
+        className="z-panel z-fadein w-full max-w-md border-[#5a1020]/80 p-6 text-center"
+        aria-label="шёпот мглы"
+        onClick={typed.complete}
+      >
+        <p className="text-[10px] uppercase tracking-[0.45em] text-[#8c1f28]">
+          шёпот мглы
+        </p>
+        <p className="mt-4 min-h-24 text-[15px] italic leading-relaxed text-[#d6cfc2] sm:text-base">
+          «{typed.full.slice(0, typed.shown)}
+          {typing && <span className="text-[#8c1f28]">▍</span>}»
+        </p>
+        {!typing && (
+          <div className="z-fadein mt-5 flex flex-col gap-2">
+            <button
+              onClick={() => resolve(true)}
+              className="rounded-sm border border-[#8c1f28] bg-[#5a1020]/25 px-3 py-2.5 text-left text-sm font-semibold text-[#e08a8a] transition-colors hover:bg-[#5a1020]/45"
+              title="Мгла запомнит. Отряд запомнит."
+            >
+              ⸸ {def.accept}
+            </button>
+            <button
+              onClick={() => resolve(false)}
+              className="rounded-sm border border-[#32233a] bg-black/30 px-3 py-2.5 text-left text-sm text-[#d6cfc2] transition-colors hover:border-[#c9a227]/60"
+              title="Стойкость — тихая память в пользу отряда"
+            >
+              ᛉ {def.reject}
+            </button>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1055,6 +1102,7 @@ export function Hud() {
       <HintToast />
       <TouchControls />
       <JournalOverlay />
+      <WhisperOverlay />
       {screen === "title" && <TitleScreen />}
       {screen === "event" && activeEventId && <EventModal key={activeEventId} />}
       <TalkMenu />
