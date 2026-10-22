@@ -225,4 +225,20 @@
 .z-log-system { border-left: 3px solid #3a3140; }
 .z-log-finale { border-left: 3px solid #8c1f28; background: rgba(140, 31, 40, 0.1); }
 
-/* rebuild trigger 1 */
+/* потоп рассвета: золотая волна при переходе к новому дню (M0.8) */
+@keyframes z-dawnflood {
+  0% { opacity: 0; }
+  32% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.z-dawnflood {
+  animation: z-dawnflood 2.6s ease-out both;
+  background: radial-gradient(
+    ellipse at 50% 88%,
+    rgba(232, 200, 144, 0.92),
+    rgba(150, 105, 62, 0.4) 52%,
+    transparent 78%
+  );
+}
+
+/* rebuild trigger 2 */

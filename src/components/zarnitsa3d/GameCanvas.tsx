@@ -1,6 +1,6 @@
 "use client";
 
-/* R3F-канвас: сцена, туман, звёзды, клавиатура, подступающая Мгла */
+/* R3F-канвас: сцена, палитра ночей/рассвета, клавиатура, следы (M0.8) */
 
 import { useEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -12,48 +12,90 @@ import { Companions } from "./Companions";
 import { Markers } from "./Markers";
 import { Snow } from "./Particles";
 import { Floaters } from "./Floaters";
+import { Footprints } from "./Footprints";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, SCENE_EVENTS } from "@/lib/zarnitsa/scenario3d";
+import { DAWN_PALETTE, NIGHT_PALETTES, WOOD_PILES, type Palette } from "@/lib/zarnitsa/camp3d";
 
-/** туман сжимается с каждой ночью — Мгла подступает */
-const FOG_BY_NIGHT: Record<number, { near: number; far: number }> = {
-  1: { near: 16, far: 62 },
-  2: { near: 14, far: 52 },
-  3: { near: 12, far: 42 },
-};
+const C_A = new THREE.Color();
+const C_B = new THREE.Color();
 
-function FogNight() {
+/** свет и туман: плавный лерп палитры ночи (+жар костра отодвигает Мглу),
+ *  на экране рассвета мир на минуту теплеет */
+function SkyLight() {
   const scene = useThree((s) => s.scene);
+  const amb = useRef<THREE.AmbientLight>(null);
+  const hemi = useRef<THREE.HemisphereLight>(null);
+  const dir = useRef<THREE.DirectionalLight>(null);
   const fog = useRef<THREE.Fog | null>(null);
-  useFrame((_, dt) => {
-    if (!fog.current) {
-      fog.current = (scene.fog as THREE.Fog) ?? null;
+  const bgObj = useRef<THREE.Color | null>(null);
+
+  useFrame((_, dtRaw) => {
+    const dt = Math.min(dtRaw, 0.05);
+    if (!fog.current) fog.current = (scene.fog as THREE.Fog) ?? null;
+    // фон сцены — существующий Color из <color attach="background">: мутируем его каналы
+    if (!bgObj.current) bgObj.current = (scene.background as THREE.Color) ?? null;
+    const { night, screen, fire } = useZarnitsa.getState();
+    const pal: Palette =
+      screen === "dawn" ? DAWN_PALETTE : NIGHT_PALETTES[night] ?? NIGHT_PALETTES[1];
+    const k = 1 - Math.exp(-dt * 1.3);
+    const heat = fire.fuel / 100;
+
+    if (bgObj.current) bgObj.current.lerp(C_A.set(pal.bg), k);
+    if (fog.current) {
+      if (bgObj.current) fog.current.color.copy(bgObj.current);
+      fog.current.near += (pal.fogNear - heat * 2.2 - fog.current.near) * k;
+      fog.current.far += (pal.fogFar + heat * 9 - fog.current.far) * k;
     }
-    const f = fog.current;
-    if (!f) return;
-    const target = FOG_BY_NIGHT[useZarnitsa.getState().night] ?? FOG_BY_NIGHT[1];
-    const k = 1 - Math.exp(-dt * 0.9);
-    f.near += (target.near - f.near) * k;
-    f.far += (target.far - f.far) * k;
+    if (amb.current) {
+      amb.current.intensity += (pal.amb.i - amb.current.intensity) * k;
+      amb.current.color.lerp(C_B.set(pal.amb.c), k);
+    }
+    if (hemi.current) {
+      hemi.current.intensity += (pal.hemi.i - hemi.current.intensity) * k;
+      hemi.current.color.lerp(C_B.set(pal.hemi.c), k);
+      hemi.current.groundColor.lerp(C_B.set(pal.hemi.ground), k);
+    }
+    if (dir.current) {
+      dir.current.intensity += (pal.dir.i - dir.current.intensity) * k;
+      dir.current.color.lerp(C_B.set(pal.dir.c), k);
+    }
   });
-  return null;
+
+  return (
+    <>
+      <ambientLight ref={amb} intensity={0.62} color="#46405e" />
+      <hemisphereLight ref={hemi} intensity={0.42} color="#322c4a" groundColor="#14111c" />
+      <directionalLight ref={dir} position={[30, 38, -22]} intensity={0.8} color="#9db0d4" />
+    </>
+  );
 }
 
 export default function GameCanvas() {
   useEffect(() => {
-    // dev-параметр: /?tp=e13 — телепорт к маркеру, /?tp=gavrila — к спутнику
+    // dev-параметр: /?tp=e13 — телепорт к маркеру, /?tp=gavrila — к спутнику,
+    // /?tp=w1 — к поленнице (M0.8)
     const tp = new URLSearchParams(window.location.search).get("tp");
     if (tp) {
       const ev = SCENE_EVENTS.find((e) => e.id === tp);
       const spot = CAMP_SPOTS[tp];
+      const pile = WOOD_PILES.find((p) => p.id === tp);
       const p = playerPos();
       if (ev) p.set(ev.pos[0] + 1.4, 0, ev.pos[1] + 1.4);
+      else if (pile) p.set(pile.x + 1.1, 0, pile.z + 1.1);
       else if (spot) p.set(spot[0] + 1.3, 0, spot[1] + 1.3);
     }
     // ?tour=1 — режим экскурсии (авто-ход к маркерам)
     if (new URLSearchParams(window.location.search).has("tour")) {
       useZarnitsa.setState({ tour: true });
     }
+
+    // dev-хук для автотестов (agent-browser): позиция игрока + стор
+    (window as unknown as Record<string, unknown>).__zarnitsa = {
+      pos: () => ({ x: playerPos().x, z: playerPos().z }),
+      tp: (x: number, z: number) => playerPos().set(x, 0, z),
+      store: useZarnitsa,
+    };
 
     const down = (e: KeyboardEvent) => {
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
@@ -66,6 +108,9 @@ export default function GameCanvas() {
       }
       if (e.code === "KeyM") {
         useZarnitsa.getState().toggleMap();
+      }
+      if (e.code === "KeyJ") {
+        useZarnitsa.getState().toggleJournal();
       }
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
@@ -92,13 +137,14 @@ export default function GameCanvas() {
       <color attach="background" args={["#0a0812"]} />
       <fog attach="fog" args={["#0a0812", 16, 62]} />
       <Stars radius={150} depth={40} count={2600} factor={4} saturation={0} fade speed={0.6} />
+      <SkyLight />
       <World />
       <Player />
       <Companions />
       <Markers />
       <Floaters />
+      <Footprints />
       <Snow />
-      <FogNight />
     </Canvas>
   );
 }

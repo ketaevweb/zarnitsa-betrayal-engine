@@ -1,12 +1,16 @@
 "use client";
 
-/* Мини-карта поляны (M или кнопка «карта»): маркеры, спутники, Столп, игрок */
+/* Мини-карта поляны (M или кнопка «карта»): маркеры, спутники, Столп, игрок.
+ * M0.8: поленницы, дозорные Мглы (каждую ночь ближе), костёр по топливу,
+ * спутники по живым позициям (бродят по лагерю). */
 
 import { useEffect, useRef } from "react";
 import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { playerAngle, playerPos } from "./Player";
 import { CAMP_SPOTS, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { COMPANIONS } from "@/lib/zarnitsa/data";
+import { WATCHER_ANGLES, WATCHER_R, WOOD_PILES } from "@/lib/zarnitsa/camp3d";
+import { companionLive } from "./campLife";
 
 const FIELD = 38; // радиус поляны
 const SIZE = 190; // px канваса
@@ -23,7 +27,7 @@ export function Minimap() {
       const canvas = ref.current;
       const ctx = canvas?.getContext("2d");
       if (!canvas || !ctx) return;
-      const { state, night, doneToday } = useZarnitsa.getState();
+      const { state, night, doneToday, fire } = useZarnitsa.getState();
 
       const c = SIZE / 2;
       const k = (c - 12) / FIELD;
@@ -49,23 +53,49 @@ export function Minimap() {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // костёр
+      // дозорные Мглы: тёмные точки с красным глазком
+      const wr = WATCHER_R[night] ?? 37;
+      for (const a of WATCHER_ANGLES) {
+        const wx = px(Math.cos(a) * wr);
+        const wz = pz(Math.sin(a) * wr);
+        ctx.beginPath();
+        ctx.arc(wx, wz, 2.4, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(14,10,20,0.9)";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(wx, wz, 0.9, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(194,42,58,0.95)";
+        ctx.fill();
+      }
+
+      // костёр: размер по топливу
+      const fr = 2 + (fire.fuel / 100) * 3;
+      const grad = ctx.createRadialGradient(px(0), pz(0), 0, px(0), pz(0), fr * 2.4);
+      grad.addColorStop(0, "rgba(255,154,60,0.95)");
+      grad.addColorStop(1, "rgba(255,154,60,0)");
       ctx.beginPath();
-      ctx.arc(px(0), pz(0), 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = "#ff9a3c";
+      ctx.arc(px(0), pz(0), fr * 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
       ctx.fill();
 
       // Столп присяги
       ctx.fillStyle = "#c9a227";
       ctx.fillRect(px(PILLAR_POS[0]) - 2.5, pz(PILLAR_POS[1]) - 2.5, 5, 5);
 
-      // спутники (цвет ступени)
+      // поленницы (серые квадратики; пустые — контур)
+      for (const p of WOOD_PILES) {
+        const left = fire.piles[p.id] ?? 0;
+        ctx.fillStyle = left > 0 ? "rgba(138,132,148,0.9)" : "rgba(138,132,148,0.25)";
+        ctx.fillRect(px(p.x) - 2, pz(p.z) - 2, 4, 4);
+      }
+
+      // спутники (цвет ступени, живые позиции)
       for (const comp of COMPANIONS) {
         const cs = state.party[comp.id];
         if (!cs || cs.gone) continue;
-        const spot = CAMP_SPOTS[comp.id];
+        const spot = companionLive[comp.id] ?? CAMP_SPOTS[comp.id];
         ctx.beginPath();
-        ctx.arc(px(spot[0]), pz(spot[1]), 2.6, 0, Math.PI * 2);
+        ctx.arc(px(spot.x), pz(spot.z), 2.6, 0, Math.PI * 2);
         ctx.fillStyle = cs.frozen
           ? "#c9a227"
           : ["#7da87b", "#c9a227", "#b3542f", "#d95f3b", "#8c1f28", "#5a1020"][cs.level];
@@ -93,7 +123,7 @@ export function Minimap() {
       const p = playerPos();
       const a = playerAngle();
       const x0 = px(p.x);
-      const z0 = pz(p.z);
+      const z0 = px(p.z);
       // угол в мире: atan2(dx,dz); на карте z вниз, поэтому поворот = a
       ctx.save();
       ctx.translate(x0, z0);

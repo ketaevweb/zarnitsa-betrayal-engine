@@ -1,0 +1,706 @@
+     1→"use client";
+     2→
+     3→/* HUD 3D-версии: титул, шапка, мини-карточки, модалки, летопись, рассвет */
+     4→
+     5→import { useEffect, useMemo, useState } from "react";
+     6→import { COMPANIONS, LADDER, COMPANION_BY_ID } from "@/lib/zarnitsa/data";
+     7→import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
+     8→import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
+     9→import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
+    10→import { audioEnabled, audioToggle, setHeartbeat, sfxBell, sfxDawn, sfxOpen } from "@/lib/zarnitsa/audio";
+    11→import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
+    12→import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
+    13→import { EndScreen } from "@/components/zarnitsa/EndScreen";
+    14→import { Minimap } from "./Minimap";
+    15→
+    16→const LOG_CLASS: Record<string, string> = {
+    17→  memory: "z-log-memory",
+    18→  level: "z-log-level",
+    19→  speech: "z-log-speech",
+    20→  catalyst: "z-log-catalyst",
+    21→  order: "z-log-order",
+    22→  system: "z-log-system",
+    23→  finale: "z-log-finale",
+    24→  trust: "z-log-memory",
+    25→};
+    26→
+    27→/* ---------------- мини-карточка спутника ---------------- */
+    28→
+    29→function MiniCard({ cid }: { cid: string }) {
+    30→  const cs = useZarnitsa((s) => s.state.party[cid]);
+    31→  const setDrawer = useZarnitsa((s) => s.setDrawer);
+    32→  if (!cs || cs.gone) return null;
+    33→  const def = COMPANION_BY_ID[cid];
+    34→  const color = cs.frozen ? "#c9a227" : ["#7da87b", "#c9a227", "#b3542f", "#d95f3b", "#8c1f28", "#5a1020"][cs.level];
+    35→  return (
+    36→    <button
+    37→      onClick={() => setDrawer("party")}
+    38→      className={`pointer-events-auto z-panel w-44 px-2.5 py-1.5 text-left transition-transform hover:-translate-y-0.5 ${
+    39→        cs.frozen ? "z-frozen" : ""
+    40→      }`}
+    41→    >
+    42→      <div className="flex items-center gap-1.5">
+    43→        <span className="text-sm text-[#c9a227]">{def.glyph}</span>
+    44→        <span className="z-heading text-[13px] font-semibold text-[#d6cfc2]">{def.name}</span>
+    45→        <span
+    46→          className="ml-auto rounded-sm px-1 text-[10px] font-bold"
+    47→          style={{ background: `${color}22`, border: `1px solid ${color}`, color }}
+    48→        >
+    49→          {cs.frozen ? "⸸" : LADDER[cs.level].short}
+    50→        </span>
+    51→      </div>
+    52→      <div className="relative mt-1 h-1.5 overflow-hidden rounded-full bg-black/45">
+    53→        <div
+    54→          className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+    55→          style={{ width: `${cs.trust}%`, background: color }}
+    56→        />
+    57→        {[10, 25, 40, 60].map((t) => (
+    58→          <div key={t} className="absolute inset-y-0 w-px bg-black/60" style={{ left: `${t}%` }} />
+    59→        ))}
+    60→      </div>
+    61→      <div className="mt-0.5 text-[10px] tabular-nums text-[#9a8f96]">
+    62→        доверие {fmtTrust(cs.trust)} · {cs.memories.length} записей
+    63→      </div>
+    64→    </button>
+    65→  );
+    66→}
+    67→
+    68→/* ---------------- шапка ---------------- */
+    69→
+    70→function SoundButton() {
+    71→  const [on, setOn] = useState(false);
+    72→  useEffect(() => {
+    73→    const t = setTimeout(() => setOn(audioEnabled()), 0);
+    74→    return () => clearTimeout(t);
+    75→  }, []);
+    76→  return (
+    77→    <button
+    78→      onClick={() => setOn(audioToggle())}
+    79→      className={`rounded-sm border px-2 py-1 text-[11px] transition-colors ${
+    80→        on
+    81→          ? "border-[#c9a227] text-[#c9a227]"
+    82→          : "border-[#32233a] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
+    83→      }`}
+    84→    >
+    85→      {on ? "звук ✓" : "звук ✕"}
+    86→    </button>
+    87→  );
+    88→}
+    89→
+    90→/* счётчик событий текущей ночи */
+    91→
+    92→function NightChip() {
+    93→  const night = useZarnitsa((s) => s.night);
+    94→  const doneToday = useZarnitsa((s) => s.doneToday);
+    95→  const list = nightEvents(night);
+    96→  const k = list.filter((e) => doneToday.includes(e.id)).length;
+    97→  return (
+    98→    <span
+    99→      className="hidden rounded-sm border border-[#32233a] bg-black/30 px-2 py-0.5 text-[11px] tabular-nums text-[#9a8f96] md:inline"
+   100→      title="Сколько событий ночи пройдено — золотые и серые маркеры на поляне"
+   101→    >
+   102→      события ночи <b className="text-[#d6cfc2]">{k}</b>/{list.length}
+   103→    </span>
+   104→  );
+   105→}
+   106→
+   107→function TopBar() {
+   108→  const night = useZarnitsa((s) => s.night);
+   109→  const gold = useZarnitsa((s) => s.state.gold);
+   110→  const setDrawer = useZarnitsa((s) => s.setDrawer);
+   111→  const togglePult = useZarnitsa((s) => s.togglePult);
+   112→  const toggleMap = useZarnitsa((s) => s.toggleMap);
+   113→  const toTitle = useZarnitsa((s) => s.toTitle);
+   114→
+   115→  return (
+   116→    <div className="pointer-events-auto flex items-center gap-3 bg-black/45 px-4 py-2 backdrop-blur-sm">
+   117→      <span className="z-heading text-base font-bold tracking-wide">
+   118→        ЗАРНИЦА<span className="text-[#7b2d35]">: КЛЯТВА</span>
+   119→      </span>
+   120→      <span className="hidden text-[11px] uppercase tracking-[0.25em] text-[#c9a227] sm:inline">
+   121→        {nightTitle(night)}
+   122→      </span>
+   123→      <NightChip />
+   124→      <span className="ml-auto flex items-center gap-2 text-xs">
+   125→        <span className="text-[#c9a227]" title="Проклятое золото отряда">
+   126→          ⛃ {gold}
+   127→        </span>
+   128→        <button
+   129→          onClick={toggleMap}
+   130→          className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
+   131→        >
+   132→          карта
+   133→        </button>
+   134→        <SoundButton />
+   135→        <button
+   136→          onClick={() => setDrawer("party")}
+   137→          className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
+   138→        >
+   139→          отряд
+   140→        </button>
+   141→        <button
+   142→          onClick={togglePult}
+   143→          className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
+   144→        >
+   145→          пульт
+   146→        </button>
+   147→        <a
+   148→          href="/?classic=1"
+   149→          className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
+   150→        >
+   151→          текст
+   152→        </a>
+   153→        <button
+   154→          onClick={toTitle}
+   155→          className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#7b2d35] hover:text-[#d6cfc2]"
+   156→        >
+   157→          меню
+   158→        </button>
+   159→      </span>
+   160→    </div>
+   161→  );
+   162→}
+   163→
+   164→/* ---------------- модалка события / разговора ---------------- */
+   165→
+   166→/** печатающийся текст: ~0.9 с на полный текст, клик — показать сразу.
+   167→ *  Компонент монтируется с key={event.id} — сброс состояния бесплатен. */
+   168→function useTypedText(text: string[]) {
+   169→  const full = useMemo(() => text.join(""), [text]);
+   170→  const [shown, setShown] = useState(0);
+   171→  useEffect(() => {
+   172→    if (!full) return;
+   173→    const step = Math.max(4, Math.round(full.length / 55));
+   174→    const iv = setInterval(() => {
+   175→      setShown((s) => Math.min(full.length, s + step));
+   176→    }, 16);
+   177→    return () => clearInterval(iv);
+   178→  }, [full]);
+   179→  return { full, shown, done: shown >= full.length, complete: () => setShown(full.length) };
+   180→}
+   181→
+   182→function EventModal() {
+   183→  const ev = useZarnitsa((s) => s.activeEvent);
+   184→  const choose = useZarnitsa((s) => s.choose);
+   185→  const typed = useTypedText(ev?.text ?? [""]);
+   186→
+   187→  useEffect(() => {
+   188→    // разговоры открываются мягче, чем ключевые события (у тех — «удар» в openEvent)
+   189→    if (ev?.id.startsWith("talk_")) sfxOpen();
+   190→  }, [ev]);
+   191→
+   192→  if (!ev) return null;
+   193→  const isTalk = ev.id.startsWith("talk_");
+   194→
+   195→  // распределение напечатанных символов по абзацам (без мутаций и без хуков)
+   196→  const starts: number[] = [];
+   197→  let sum = 0;
+   198→  for (const p of ev.text) {
+   199→    starts.push(sum);
+   200→    sum += p.length;
+   201→  }
+   202→  const parts = ev.text.map((p, i) => {
+   203→    const start = starts[i];
+   204→    const take = typed.shown > start ? Math.min(p.length, typed.shown - start) : 0;
+   205→    return { p, take };
+   206→  });
+   207→  const typingIdx = parts.findIndex((x) => x.take < x.p.length);
+   208→
+   209→  return (
+   210→    <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/55 p-4">
+   211→      <section
+   212→        className="z-panel z-fadein max-h-[86vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-7"
+   213→        aria-label={ev.title}
+   214→        onClick={typed.complete}
+   215→      >
+   216→        <div className="flex flex-wrap items-center gap-2">
+   217→          <span className="rounded-sm border border-[#32233a] px-2 py-0.5 text-[11px] text-[#9a8f96]">
+   218→            {isTalk ? "разговор у костра" : `Ночь ${ev.day} · ${ev.phase}`}
+   219→          </span>
+   220→          {ev.isOrder && (
+   221→            <span className="rounded-sm border border-[#b3542f] bg-[#b3542f]/10 px-2 py-0.5 text-[11px] font-semibold text-[#b3542f]">
+   222→              ПАУЗА ПРИСЯГИ · приказ
+   223→            </span>
+   224→          )}
+   225→          {ev.title.startsWith("⸸") && (
+   226→            <span className="rounded-sm border border-[#c9a227] bg-[#c9a227]/10 px-2 py-0.5 text-[11px] font-semibold text-[#c9a227]">
+   227→              катализатор
+   228→            </span>
+   229→          )}
+   230→        </div>
+   231→        <h2 className="z-heading mt-2 text-2xl font-semibold sm:text-3xl">
+   232→          {ev.title.replace("⸸ ", "")}
+   233→        </h2>
+   234→        <div className="mt-3 space-y-2.5">
+   235→          {parts.map(({ p, take }, i) => (
+   236→            <p key={i} className="text-sm leading-relaxed text-[#d6cfc2] sm:text-[15px]">
+   237→              {p.slice(0, take)}
+   238→              {i === typingIdx && (
+   239→                <span className="text-[#c9a227]">▍</span>
+   240→              )}
+   241→            </p>
+   242→          ))}
+   243→        </div>
+   244→        {!typed.done && (
+   245→          <p className="mt-1.5 text-right text-[10px] uppercase tracking-[0.2em] text-[#9a8f96]/70">
+   246→            клик — дальше
+   247→          </p>
+   248→        )}
+   249→        <div className="mt-5 space-y-2">
+   250→          {ev.choices.map((c, i) => (
+   251→            <button
+   252→              key={c.id}
+   253→              onClick={(e) => {
+   254→                e.stopPropagation();
+   255→                choose(i);
+   256→              }}
+   257→              className="z-choice"
+   258→            >
+   259→              <span className="block text-sm font-medium sm:text-[15px]">{c.label}</span>
+   260→              {c.note && (
+   261→                <span className="mt-0.5 block text-xs italic text-[#9a8f96]">{c.note}</span>
+   262→              )}
+   263→            </button>
+   264→          ))}
+   265→        </div>
+   266→      </section>
+   267→    </div>
+   268→  );
+   269→}
+   270→
+   271→/* ---------------- меню разговора ---------------- */
+   272→
+   273→function TalkMenu() {
+   274→  const cid = useZarnitsa((s) => s.talkMenu);
+   275→  const state = useZarnitsa((s) => s.state);
+   276→  const night = useZarnitsa((s) => s.night);
+   277→  const openTalk = useZarnitsa((s) => s.openTalk);
+   278→  const close = useZarnitsa((s) => s.closeTalkMenu);
+   279→  if (!cid) return null;
+   280→  const def = COMPANION_BY_ID[cid];
+   281→  const cs = state.party[cid];
+   282→  return (
+   283→    <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/55 p-4">
+   284→      <section className="z-panel z-fadein w-full max-w-md p-5" aria-label={`Разговор с ${def.name}`}>
+   285→        <div className="flex items-center gap-2">
+   286→          <span className="text-lg text-[#c9a227]">{def.glyph}</span>
+   287→          <h2 className="z-heading text-xl font-semibold">{def.name}</h2>
+   288→          <span className="text-[11px] text-[#9a8f96]">{def.title}</span>
+   289→        </div>
+   290→        <p className="mt-1.5 text-xs leading-snug text-[#9a8f96]">{def.value}</p>
+   291→        {cs && cs.frozen && (
+   292→          <p className="mt-2 rounded-sm border border-[#c9a227]/40 bg-[#c9a227]/10 px-2 py-1 text-[11px] text-[#c9a227]">
+   293→            ⸸ {def.name} ждёт Права слова — разговор не остановит ступень
+   294→          </p>
+   295→        )}
+   296→        <div className="mt-4 space-y-2">
+   297→          {TALK_ACTIONS.filter((a) => talkAvailable(state, cid, a.id, night)).map((a) => (
+   298→            <button key={a.id} onClick={() => openTalk(cid, a.id)} className="z-choice">
+   299→              <span className="block text-sm font-medium">{a.label}</span>
+   300→              <span className="mt-0.5 block text-xs italic text-[#9a8f96]">{a.note}</span>
+   301→            </button>
+   302→          ))}
+   303→          <button onClick={close} className="z-choice">
+   304→            <span className="block text-sm text-[#9a8f96]">Отойти молча</span>
+   305→          </button>
+   306→        </div>
+   307→        <p className="mt-3 text-[10px] leading-snug text-[#9a8f96]">
+   308→          Каждое действие — раз за ночь. «Уколоть за живое» бьёт по больному тегу:
+   309→          у каждого спутника своя трещина.
+   310→        </p>
+   311→      </section>
+   312→    </div>
+   313→  );
+   314→}
+   315→
+   316→/* ---------------- ящик отряда ---------------- */
+   317→
+   318→function PartyDrawer() {
+   319→  const drawer = useZarnitsa((s) => s.drawer);
+   320→  const state = useZarnitsa((s) => s.state);
+   321→  const setDrawer = useZarnitsa((s) => s.setDrawer);
+   322→  if (drawer !== "party") return null;
+   323→  return (
+   324→    <div className="pointer-events-auto absolute inset-y-0 right-0 z-40 w-full max-w-sm overflow-y-auto bg-[#0d0a10]/95 p-4 backdrop-blur">
+   325→      <div className="flex items-center justify-between">
+   326→        <h3 className="z-heading text-sm font-semibold uppercase tracking-[0.2em] text-[#9a8f96]">
+   327→          Отряд · лестница предательства
+   328→        </h3>
+   329→        <button
+   330→          onClick={() => setDrawer(null)}
+   331→          className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#7b2d35] hover:text-[#d6cfc2]"
+   332→        >
+   333→          ✕
+   334→        </button>
+   335→      </div>
+   336→      <div className="mt-3 space-y-3">
+   337→        {COMPANIONS.map((c) => (
+   338→          <CompanionCard key={c.id} cs={state.party[c.id]} />
+   339→        ))}
+   340→        <div className="z-panel p-3 text-[11px] leading-snug text-[#9a8f96]">
+   341→          <div className="mb-1.5 flex flex-wrap gap-1.5">
+   342→            {LADDER.map((l) => (
+   343→              <LevelBadge key={l.level} level={l.level} small />
+   344→            ))}
+   345→          </div>
+   346→          Пороги доверия: I &lt; 60 · II &lt; 40 · III &lt; 25 · IV &lt; 10. V — только сюжет.
+   347→        </div>
+   348→      </div>
+   349→    </div>
+   350→  );
+   351→}
+   352→
+   353→/* ---------------- пульт испытателя ---------------- */
+   354→
+   355→function Pult() {
+   356→  const open = useZarnitsa((s) => s.pultOpen);
+   357→  const drain = useZarnitsa((s) => s.drain);
+   358→  const start = useZarnitsa((s) => s.start);
+   359→  if (!open) return null;
+   360→  return (
+   361→    <div className="pointer-events-auto z-panel z-fadein mx-4 mt-2 p-3">
+   362→      <div className="flex flex-wrap gap-2">
+   363→        <button
+   364→          onClick={() => drain(-15)}
+   365→          className="rounded-sm border border-[#7b2d35] px-3 py-1.5 text-xs text-[#d6cfc2] hover:bg-[#7b2d35]/30"
+   366→        >
+   367→          −15 доверия всем
+   368→        </button>
+   369→        <button
+   370→          onClick={() => drain(-45)}
+   371→          className="rounded-sm border border-[#8c1f28] px-3 py-1.5 text-xs text-[#d6cfc2] hover:bg-[#8c1f28]/30"
+   372→        >
+   373→          обрушить всех на −45 (право слова)
+   374→        </button>
+   375→        <button
+   376→          onClick={() => drain(25)}
+   377→          className="rounded-sm border border-[#32233a] px-3 py-1.5 text-xs text-[#d6cfc2] hover:border-[#c9a227]"
+   378→        >
+   379→          +25 доверия всем
+   380→        </button>
+   381→        <button
+   382→          onClick={start}
+   383→          className="rounded-sm border border-[#32233a] px-3 py-1.5 text-xs text-[#9a8f96] hover:border-[#c9a227]"
+   384→        >
+   385→          ⟲ сброс прогона
+   386→        </button>
+   387→      </div>
+   388→      <p className="mt-1.5 text-[10px] leading-snug text-[#9a8f96]">
+   389→        Пульт для демонстрации механик. Довести спутника до Разрыва можно и без него —
+   390→        через «уколоть за живое» у костра и жёсткие решения.
+   391→      </p>
+   392→    </div>
+   393→  );
+   394→}
+   395→
+   396→/* ---------------- титульный экран ---------------- */
+   397→
+   398→function TitleScreen() {
+   399→  const start = useZarnitsa((s) => s.start);
+   400→  const resumeRun = useZarnitsa((s) => s.resumeRun);
+   401→  const hasSave = useZarnitsa((s) => s.hasSave);
+   402→  const refreshHasSave = useZarnitsa((s) => s.refreshHasSave);
+   403→  useEffect(() => {
+   404→    refreshHasSave();
+   405→  }, [refreshHasSave]);
+   406→  const saved = savedNight();
+   407→  return (
+   408→    <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
+   409→      <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
+   410→        3D-прототип · M0.7 «Живая ночь»
+   411→      </p>
+   412→      <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
+   413→        ЗАРНИЦА
+   414→        <span className="mt-1 block text-2xl font-semibold tracking-[0.35em] text-[#7b2d35] sm:text-3xl">
+   415→          КЛЯТВА
+   416→        </span>
+   417→      </h1>
+   418→      <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-[#9a8f96]">
+   419→        Три ночи под Мглой: ходи по поляне, находи события, говори с отрядом.
+   420→        17 ключевых решений, 9 дорожных находок, 4 спутника, движок предательства —
+   421→        тот же, что в текстовом прототипе и Godot-каркасе.
+   422→        Теперь с звуком, всплывающим доверием и автосохранением прогона.
+   423→      </p>
+   424→      <div className="z-panel mt-6 grid max-w-xl gap-2 p-4 text-xs text-[#9a8f96] sm:grid-cols-2">
+   425→        <span>
+   426→          <b className="text-[#d6cfc2]">WASD / стрелки</b> — движение
+   427→        </span>
+   428→        <span>
+   429→          <b className="text-[#d6cfc2]">E</b> — действие (маркер, спутник)
+   430→        </span>
+   431→        <span>
+   432→          <b className="text-[#d6cfc2]">M</b> — карта поляны
+   433→        </span>
+   434→        <span>
+   435→          <b className="text-[#d6cfc2]">Золотые маркеры</b> — ключевые события
+   436→        </span>
+   437→        <span>
+   438→          <b className="text-[#7a8aa0]">Серые маркеры</b> — дорога (не обязан)
+   439→        </span>
+   440→        <span>
+   441→          <b className="text-[#d6cfc2]">Разговоры</b> — поддержка или «уколоть»
+   442→        </span>
+   443→      </div>
+   444→      {hasSave && (
+   445→        <button
+   446→          onClick={resumeRun}
+   447→          className="mt-7 rounded-sm border border-[#32233a] bg-black/35 px-8 py-3 text-base text-[#d6cfc2] transition-all hover:border-[#c9a227] hover:text-[#c9a227]"
+   448→        >
+   449→          ⟲ Продолжить поход{saved ? ` · Ночь ${saved}` : ""}
+   450→        </button>
+   451→      )}
+   452→      <button
+   453→        onClick={start}
+   454→        className="mt-4 rounded-sm border border-[#c9a227] bg-[#7b2d35]/25 px-10 py-4 text-lg font-semibold tracking-wide text-[#c9a227] transition-all hover:bg-[#7b2d35]/45 hover:shadow-[0_0_24px_rgba(201,162,39,0.25)]"
+   455→      >
+   456→        ⚔ Выйти в ночь
+   457→      </button>
+   458→      <a
+   459→        href="/?classic=1"
+   460→        className="mt-4 text-[11px] text-[#9a8f96] underline decoration-[#32233a] underline-offset-4 hover:text-[#d6cfc2]"
+   461→      >
+   462→        текстовая версия прототипа
+   463→      </a>
+   464→    </div>
+   465→  );
+   466→}
+   467→
+   468→/* ---------------- оверлеи: интро ночи, рассвет ---------------- */
+   469→
+   470→function IntroOverlay() {
+   471→  const intro = useZarnitsa((s) => s.intro);
+   472→  useEffect(() => {
+   473→    if (!intro) return;
+   474→    sfxBell();
+   475→    const t = setTimeout(() => useZarnitsa.setState({ intro: null }), 2600);
+   476→    return () => clearTimeout(t);
+   477→  }, [intro]);
+   478→  if (!intro) return null;
+   479→  return (
+   480→    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
+   481→      <div className="z-fadein bg-black/40 px-10 py-6 text-center backdrop-blur-sm">
+   482→        <p className="z-heading text-3xl font-bold tracking-[0.2em] text-[#c9a227] sm:text-4xl">
+   483→          {intro}
+   484→        </p>
+   485→        <p className="mt-2 text-xs uppercase tracking-[0.3em] text-[#9a8f96]">
+   486→          Мгла слушает
+   487→        </p>
+   488→      </div>
+   489→    </div>
+   490→  );
+   491→}
+   492→
+   493→function DawnOverlay() {
+   494→  const night = useZarnitsa((s) => s.night);
+   495→  const dawnGo = useZarnitsa((s) => s.dawnGo);
+   496→  const summary = useZarnitsa((s) => s.nightSummary);
+   497→  useEffect(() => {
+   498→    sfxDawn();
+   499→  }, []);
+   500→  const next = Math.min(night + 1, 3);
+   501→  return (
+   502→    <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-[#0d0a10]/78 p-4 backdrop-blur-sm">
+   503→      <div className="z-panel z-fadein max-w-lg p-7 text-center">
+   504→        <p className="text-xs uppercase tracking-[0.35em] text-[#9a8f96]">
+   505→          Ночь {night} пережита
+   506→        </p>
+   507→        <h2 className="z-heading mt-2 text-3xl font-bold text-[#c9a227]">
+   508→          Рассвет над Студёным лесом
+   509→        </h2>
+   510→        <p className="mt-3 text-sm leading-relaxed text-[#d6cfc2]">
+   511→          Мгла отступает до сумерек — но записи в памяти отряда не тускнеют.
+   512→          Впереди: {nightTitle(next)}.
+   513→        </p>
+   514→        {summary && summary.length > 0 && (
+   515→          <div className="z-panel mt-4 p-3 text-left">
+   516→            <p className="mb-1.5 text-[10px] uppercase tracking-[0.25em] text-[#9a8f96]">
+   517→              За эту ночь память изменилась
+   518→            </p>
+   519→            <ul className="space-y-1">
+   520→              {summary.map((r) => (
+   521→                <li key={r.cid} className="flex items-center gap-2 text-sm">
+   522→                  <span className="text-[#c9a227]">{COMPANION_BY_ID[r.cid]?.glyph}</span>
+   523→                  <span className="text-[#d6cfc2]">{COMPANION_BY_ID[r.cid]?.name ?? r.cid}</span>
+   524→                  <span
+   525→                    className={`ml-auto font-semibold tabular-nums ${
+   526→                      r.delta > 0 ? "text-[#8fbc8d]" : "text-[#e08a8a]"
+   527→                    }`}
+   528→                  >
+   529→                    Δ {fmtDelta(r.delta)}
+   530→                  </span>
+   531→                </li>
+   532→              ))}
+   533→            </ul>
+   534→          </div>
+   535→        )}
+   536→        <button
+   537→          onClick={dawnGo}
+   538→          className="mt-5 rounded-sm border border-[#c9a227] bg-[#7b2d35]/25 px-8 py-3 font-semibold text-[#c9a227] transition-all hover:bg-[#7b2d35]/45"
+   539→        >
+   540→          Идти дальше →
+   541→        </button>
+   542→      </div>
+   543→    </div>
+   544→  );
+   545→}
+   546→
+   547→/* ---------------- подсказка взаимодействия + летопись ---------------- */
+   548→
+   549→function Prompt() {
+   550→  const nearest = useZarnitsa((s) => s.nearest);
+   551→  const screen = useZarnitsa((s) => s.screen);
+   552→  if (screen !== "play" || !nearest) return null;
+   553→  const text =
+   554→    nearest.kind === "event"
+   555→      ? `Осмотреть: ${SCENE_EVENTS.find((e) => e.id === nearest.id)?.marker ?? "…"}`
+   556→      : `Говорить: ${COMPANION_BY_ID[nearest.id]?.name ?? "…"}`;
+   557→  return (
+   558→    <div className="pointer-events-none absolute bottom-36 left-1/2 z-20 -translate-x-1/2">
+   559→      <div className="z-panel z-fadein px-4 py-2 text-sm text-[#d6cfc2]">
+   560→        <span className="mr-2 inline-block rounded-sm border border-[#c9a227] px-1.5 text-[11px] font-bold text-[#c9a227]">
+   561→          E
+   562→        </span>
+   563→        {text}
+   564→      </div>
+   565→    </div>
+   566→  );
+   567→}
+   568→
+   569→function LogTicker() {
+   570→  const log = useZarnitsa((s) => s.state.log);
+   571→  const entries = log.slice(-3).reverse();
+   572→  return (
+   573→    <div className="pointer-events-none absolute bottom-24 left-3 z-20 w-[min(92vw,430px)] space-y-1">
+   574→      {entries.map((entry) => (
+   575→        <div
+   576→          key={entry.id}
+   577→          className={`z-fadein rounded-sm bg-black/55 px-2.5 py-1 text-[11px] leading-snug backdrop-blur-sm ${
+   578→            LOG_CLASS[entry.kind] ?? "z-log-system"
+   579→          }`}
+   580→        >
+   581→          <span className="text-[#d6cfc2]">{entry.text}</span>
+   582→          {typeof entry.delta === "number" && Math.abs(entry.delta) > 0.001 && (
+   583→            <span
+   584→              className={`ml-1.5 font-semibold tabular-nums ${
+   585→                entry.delta > 0 ? "text-[#8fbc8d]" : "text-[#e08a8a]"
+   586→              }`}
+   587→            >
+   588→              Δ {fmtDelta(entry.delta)}
+   589→            </span>
+   590→          )}
+   591→          {typeof entry.trustAfter === "number" && (
+   592→            <span className="ml-1.5 text-[10px] tabular-nums text-[#9a8f96]">
+   593→              {fmtTrust(entry.trustAfter)}
+   594→            </span>
+   595→          )}
+   596→        </div>
+   597→      ))}
+   598→    </div>
+   599→  );
+   600→}
+   601→
+   602→function ControlsHint() {
+   603→  const screen = useZarnitsa((s) => s.screen);
+   604→  if (screen !== "play") return null;
+   605→  return (
+   606→    <div className="pointer-events-none absolute bottom-3 right-3 z-20 text-right text-[10px] leading-relaxed text-[#9a8f96]/85">
+   607→      WASD — движение · E — действие · M — карта
+   608→      <br />
+   609→      отряд — верхняя панель
+   610→    </div>
+   611→  );
+   612→}
+   613→
+   614→/* ---------------- виньетка напряжения (M0.7) ---------------- */
+   615→
+   616→function Vignette() {
+   617→  const party = useZarnitsa((s) => s.state.party);
+   618→  const screen = useZarnitsa((s) => s.screen);
+   619→
+   620→  let maxLevel = 0;
+   621→  let frozen = 0;
+   622→  for (const cs of Object.values(party)) {
+   623→    if (cs.gone) continue;
+   624→    if (cs.level > maxLevel) maxLevel = cs.level;
+   625→    if (cs.frozen) frozen++;
+   626→  }
+   627→  const intensity = Math.min(1, (maxLevel + frozen * 0.5) / 5.5);
+   628→  const hot = maxLevel >= 4 || frozen > 0;
+   629→  const level = Math.round(intensity * 10) / 10;
+   630→
+   631→  useEffect(() => {
+   632→    setHeartbeat(hot && screen === "play" ? 0.3 + level * 0.6 : 0);
+   633→    return () => setHeartbeat(0);
+   634→  }, [hot, screen, level]);
+   635→
+   636→  if (screen === "title" || screen === "end" || intensity < 0.02) return null;
+   637→  return (
+   638→    <>
+   639→      <div
+   640→        className="pointer-events-none absolute inset-0 z-[15]"
+   641→        style={{
+   642→          background: `radial-gradient(ellipse at center, transparent 40%, rgba(90,16,32,${(
+   643→            0.55 * intensity
+   644→          ).toFixed(3)}) 100%)`,
+   645→        }}
+   646→      />
+   647→      {hot && screen === "play" && (
+   648→        <div
+   649→          className="z-heartbeat pointer-events-none absolute inset-0 z-[15]"
+   650→          style={{
+   651→            background:
+   652→              "radial-gradient(ellipse at center, transparent 52%, rgba(140,31,40,0.42) 100%)",
+   653→          }}
+   654→        />
+   655→      )}
+   656→    </>
+   657→  );
+   658→}
+   659→
+   660→/* ---------------- корневой HUD ---------------- */
+   661→
+   662→export function Hud() {
+   663→  const screen = useZarnitsa((s) => s.screen);
+   664→  const state = useZarnitsa((s) => s.state);
+   665→  const ending = useZarnitsa((s) => s.ending);
+   666→  const chooseSpeech = useZarnitsa((s) => s.chooseSpeech);
+   667→  const toTitle = useZarnitsa((s) => s.toTitle);
+   668→  const activeEventId = useZarnitsa((s) => s.activeEvent?.id);
+   669→
+   670→  if (screen === "end" && ending) {
+   671→    return (
+   672→      <div className="absolute inset-0 z-30 overflow-y-auto">
+   673→        <EndScreen state={state} ending={ending} onRestart={toTitle} />
+   674→      </div>
+   675→    );
+   676→  }
+   677→
+   678→  return (
+   679→    <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
+   680→      {screen !== "title" && <TopBar />}
+   681→      {screen !== "title" && <Pult />}
+   682→      {screen === "play" && (
+   683→        <div className="mt-auto flex gap-2 px-3 pb-16">
+   684→          {COMPANIONS.map((c) => (
+   685→            <MiniCard key={c.id} cid={c.id} />
+   686→          ))}
+   687→        </div>
+   688→      )}
+   689→      <Prompt />
+   690→      <LogTicker />
+   691→      <ControlsHint />
+   692→      <Minimap />
+   693→      <Vignette />
+   694→      {screen === "title" && <TitleScreen />}
+   695→      {screen === "event" && activeEventId && <EventModal key={activeEventId} />}
+   696→      <TalkMenu />
+   697→      {screen === "speech" && state.speechTarget && (
+   698→        <SpeechDialog state={state} companionId={state.speechTarget} onResolve={(o: SpeechOption) => chooseSpeech(o)} />
+   699→      )}
+   700→      {screen === "dawn" && <DawnOverlay />}
+   701→      <IntroOverlay />
+   702→      <PartyDrawer />
+   703→    </div>
+   704→  );
+   705→}
+   706→

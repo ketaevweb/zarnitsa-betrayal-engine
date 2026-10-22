@@ -24,20 +24,39 @@ import {
 } from "./scenario3d";
 import type { EventDef, GameState } from "./types";
 import {
+  CARRY_MAX,
+  FUEL_DECAY,
+  LOG_FUEL,
+  LOGS_PER_PILE,
+  PILLAR_FUEL,
+  WOOD_PILES,
+} from "./camp3d";
+import {
   audioStart,
   sfxClick,
   sfxDeltaDown,
   sfxDeltaUp,
   sfxEnding,
+  sfxFeed,
   sfxNeedle,
+  sfxPickup,
   sfxReveal,
 } from "./audio";
 
 export type Screen = "title" | "play" | "event" | "speech" | "dawn" | "end";
 
 export interface Nearest {
-  kind: "event" | "companion";
+  kind: "event" | "companion" | "fire" | "wood";
   id: string;
+}
+
+/** состояние костра — живой ресурс M0.8 */
+export interface FireState {
+  fuel: number; // 0..100
+  carried: number; // поленьев в руках
+  piles: Record<string, number>; // остаток поленьев в поленницах
+  died: boolean; // костёр пал этой ночью (штраф раз за ночь)
+  fedAt: number; // performance.now() последней подкормки — вспышка пламени
 }
 
 export type Ending = ReturnType<typeof buildEnding>;
@@ -74,18 +93,32 @@ interface SaveShape {
   night: number;
   doneToday: string[];
   nightStart: Record<string, number>;
+  fire?: FireState;
   at: number;
 }
 
-function persist(s: GameState, night: number, doneToday: string[], nightStart: Record<string, number>) {
+function persist(
+  s: GameState,
+  night: number,
+  doneToday: string[],
+  nightStart: Record<string, number>,
+  fire?: FireState,
+) {
   try {
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ state: s, night, doneToday, nightStart, at: Date.now() } satisfies SaveShape),
+      JSON.stringify({ state: s, night, doneToday, nightStart, fire, at: Date.now() } satisfies SaveShape),
     );
   } catch {
     /* приватный режим — играем без сохранения */
   }
+}
+
+/** свежий костёр на новую ночь: дрова заготовлены, огонь раздут */
+function freshFire(keepFuel = 0): FireState {
+  const piles: Record<string, number> = {};
+  for (const p of WOOD_PILES) piles[p.id] = LOGS_PER_PILE;
+  return { fuel: Math.max(65, keepFuel), carried: 0, piles, died: false, fedAt: 0 };
 }
 
 function readSave(): SaveShape | null {
@@ -137,6 +170,8 @@ function trustDiff(before: Record<string, number>, after: GameState): Record<str
 
 let floaterSeq = 1;
 
+let hintTimer: ReturnType<typeof setTimeout> | null = null;
+
 interface ZarnitsaStore {
   screen: Screen;
   state: GameState;
@@ -167,6 +202,12 @@ interface ZarnitsaStore {
   nightSummary: NightSummaryRow[] | null;
   /** есть сохранённый прогон (кнопка «Продолжить») */
   hasSave: boolean;
+  /** костёр (M0.8) */
+  fire: FireState;
+  /** всплывающая подсказка сверху (костёр, Столп, поленья) */
+  hint: string | null;
+  /** летопись на весь экран (J) */
+  journalOpen: boolean;
 
   start: () => void;
   toTitle: () => void;
@@ -186,6 +227,14 @@ interface ZarnitsaStore {
   drain: (delta: number) => void;
   dawnGo: () => void;
   pushFloaters: (diff: Record<string, number>) => void;
+  /** убыль топлива; зовётся из useFrame, сама решает, идти ли */
+  tickFire: (dt: number) => void;
+  /** взять полено с поленницы */
+  pickupWood: (pileId: string) => void;
+  /** бросить полено в костёр */
+  feedFire: () => void;
+  setHint: (text: string | null) => void;
+  toggleJournal: () => void;
 }
 
 function endingOf(state: GameState): Ending {
@@ -229,11 +278,15 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   nightStart: snapshotTrust(debugReset()),
   nightSummary: null,
   hasSave: false,
+  fire: freshFire(85),
+  hint: null,
+  journalOpen: false,
 
   start: () => {
     audioStart();
     const fresh = debugReset();
     const nightStart = snapshotTrust(fresh);
+    const fire = freshFire(85);
     set({
       screen: "play",
       state: fresh,
@@ -250,13 +303,26 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       nightSummary: null,
       nightStart,
       moves: get().moves + 1,
+      fire,
+      hint: null,
+      journalOpen: false,
     });
-    persist(fresh, 1, [], nightStart);
+    persist(fresh, 1, [], nightStart, fire);
     set({ hasSave: true });
   },
 
   toTitle: () =>
-    set({ screen: "title", ending: null, intro: null, drawer: null, pultOpen: false, mapOpen: false, talkMenu: null }),
+    set({
+      screen: "title",
+      ending: null,
+      intro: null,
+      drawer: null,
+      pultOpen: false,
+      mapOpen: false,
+      talkMenu: null,
+      journalOpen: false,
+      hint: null,
+    }),
 
   /** продолжить сохранённый прогон */
   resumeRun: () => {
@@ -280,22 +346,34 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       nightSummary: null,
       moves: get().moves + 1,
       hasSave: true,
+      fire: save.fire ?? freshFire(),
+      hint: null,
+      journalOpen: false,
     });
   },
 
   refreshHasSave: () => set({ hasSave: !!readSave() }),
 
-  /** клавиша E: ближайший маркер или спутник */
+  /** клавиша E: маркер, спутник, костёр или поленница */
   interact: () => {
     const { screen, nearest } = get();
     if (screen !== "play" || !nearest) return;
     if (nearest.kind === "event") get().openEvent(nearest.id);
+    else if (nearest.kind === "fire") get().feedFire();
+    else if (nearest.kind === "wood") get().pickupWood(nearest.id);
     else set({ talkMenu: nearest.id });
   },
 
   openEvent: (id) => {
     const ev = SCENE_EVENTS.find((e) => e.id === id);
     if (!ev) return;
+    // Столп принимает только живой огонь — обряд разжигается от костра
+    if (id === "e12" && get().fire.fuel < PILLAR_FUEL) {
+      get().setHint(
+        `Столп требует живого огня — подкорми костёр (топливо ${Math.round(get().fire.fuel)}/${PILLAR_FUEL})`,
+      );
+      return;
+    }
     sfxReveal();
     set({ screen: "event", activeEvent: ev });
   },
@@ -361,7 +439,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       return;
     }
     set({ state: next, screen: "play", activeEvent: null, doneToday: done, talkMenu: null });
-    persist(next, get().night, done, get().nightStart);
+    persist(next, get().night, done, get().nightStart, get().fire);
     getAndApplyDawn(set, get, next, done);
   },
 
@@ -387,7 +465,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     }
     const done = pendingDoneId ? [...doneToday, pendingDoneId] : doneToday;
     set({ state: next, screen: "play", pendingDoneId: null, doneToday: done });
-    persist(next, get().night, done, get().nightStart);
+    persist(next, get().night, done, get().nightStart, get().fire);
     getAndApplyDawn(set, get, next, done);
   },
 
@@ -424,9 +502,11 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   },
 
   dawnGo: () => {
-    const { night, state } = get();
+    const { night, state, fire } = get();
     const nextNight = Math.min(night + 1, NIGHT_COUNT);
     const nightStart = snapshotTrust(state);
+    // за день отряд заготовил дрова и разжёг костёр к сумеркам
+    const nextFire = freshFire(fire.fuel);
     set({
       screen: "play",
       night: nextNight,
@@ -438,8 +518,63 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       nightSummary: null,
       nightStart,
       moves: get().moves + 1,
+      fire: nextFire,
+      hint: null,
+      journalOpen: false,
     });
-    persist(state, nextNight, [], nightStart);
+    persist(state, nextNight, [], nightStart, nextFire);
+  },
+
+  tickFire: (dt) => {
+    const s = get();
+    if (s.screen !== "play" || s.journalOpen) return;
+    const f = s.fire;
+    if (f.fuel <= 0) return;
+    const fuel = Math.max(0, f.fuel - dt * FUEL_DECAY);
+    const died = fuel <= 0 && !f.died;
+    set({ fire: { ...f, fuel, died: f.died || died } });
+    if (died) {
+      // костёр пал — Мгла подошла к самым спинам, память запомнит
+      s.drain(-3);
+      s.setHint("Костёр пал — Мгла у самых спин. Отряд запомнил этот холод (−3)");
+    }
+  },
+
+  pickupWood: (pileId) => {
+    const f = get().fire;
+    if (f.carried >= CARRY_MAX) {
+      get().setHint(`Руки заняты — больше ${CARRY_MAX} поленьев не унести`);
+      return;
+    }
+    if ((f.piles[pileId] ?? 0) <= 0) {
+      get().setHint("Штабель пуст — дрова кончились");
+      return;
+    }
+    sfxPickup();
+    set({
+      fire: { ...f, carried: f.carried + 1, piles: { ...f.piles, [pileId]: (f.piles[pileId] ?? 0) - 1 } },
+    });
+  },
+
+  feedFire: () => {
+    const f = get().fire;
+    if (f.carried <= 0) {
+      get().setHint("Поленьев нет — поищи штабеля на поляне (серые стопки)");
+      return;
+    }
+    sfxFeed();
+    set({ fire: { ...f, carried: f.carried - 1, fuel: Math.min(100, f.fuel + LOG_FUEL), fedAt: performance.now() } });
+  },
+
+  setHint: (text) => {
+    set({ hint: text });
+    if (hintTimer) clearTimeout(hintTimer);
+    if (text) hintTimer = setTimeout(() => set({ hint: null }), 3600);
+  },
+
+  toggleJournal: () => {
+    if (get().screen !== "play") return;
+    set({ journalOpen: !get().journalOpen });
   },
 
   pushFloaters: (diff) => {

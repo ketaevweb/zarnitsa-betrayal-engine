@@ -305,6 +305,26 @@ export function sfxStep() {
   noiseBurst(0.045, { freq: 480 + Math.random() * 260, q: 0.7, gain: 0.028, type: "lowpass" });
 }
 
+/** шёпот Мглы (костёр гас / ночь III): шум-выдох + диссонанс */
+export function sfxWhisper() {
+  noiseBurst(0.55, { freq: 620, q: 0.5, gain: 0.05, type: "bandpass" });
+  tone(124, 0.7, { type: "sine", gain: 0.045, slide: 96 });
+  tone(131, 0.7, { type: "sine", gain: 0.035, slide: 104, delay: 0.08 });
+}
+
+/** полено в костёр: глухой стук + россыпь искр */
+export function sfxFeed() {
+  noiseBurst(0.09, { freq: 220, q: 0.9, gain: 0.14, type: "lowpass" });
+  noiseBurst(0.3, { freq: 1800, q: 0.6, gain: 0.05, delay: 0.1 });
+  tone(88, 0.16, { type: "sine", gain: 0.09, slide: 60 });
+}
+
+/** взять полено со штабеля */
+export function sfxPickup() {
+  noiseBurst(0.07, { freq: 900, q: 0.8, gain: 0.06, type: "lowpass" });
+  tone(220, 0.06, { type: "triangle", gain: 0.05, delay: 0.05 });
+}
+
 /* ---------------- сердцебиение напряжения ---------------- */
 
 function heartBeat() {

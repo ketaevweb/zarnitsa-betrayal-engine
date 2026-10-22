@@ -2,16 +2,26 @@
 
 /* HUD 3D-версии: титул, шапка, мини-карточки, модалки, летопись, рассвет */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { COMPANIONS, LADDER, COMPANION_BY_ID } from "@/lib/zarnitsa/data";
 import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
 import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
 import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
-import { audioEnabled, audioToggle, setHeartbeat, sfxBell, sfxDawn, sfxOpen } from "@/lib/zarnitsa/audio";
+import { PILLAR_FUEL } from "@/lib/zarnitsa/camp3d";
+import {
+  audioEnabled,
+  audioToggle,
+  setHeartbeat,
+  sfxBell,
+  sfxClick,
+  sfxDawn,
+  sfxOpen,
+} from "@/lib/zarnitsa/audio";
 import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
 import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
 import { EndScreen } from "@/components/zarnitsa/EndScreen";
 import { Minimap } from "./Minimap";
+import { touchInput } from "./campLife";
 
 const LOG_CLASS: Record<string, string> = {
   memory: "z-log-memory",
@@ -104,12 +114,55 @@ function NightChip() {
   );
 }
 
+/* шкала костра (M0.8): топливо + поленья в руках */
+
+function FireGauge() {
+  const fuel = useZarnitsa((s) => s.fire.fuel);
+  const carried = useZarnitsa((s) => s.fire.carried);
+  const low = fuel < 25;
+  const rite = fuel >= PILLAR_FUEL;
+  const color = fuel <= 0 ? "#5a5560" : low ? "#d95f3b" : "#ff9a3c";
+  return (
+    <span
+      className="flex items-center gap-1.5 rounded-sm border border-[#32233a] bg-black/30 px-2 py-0.5"
+      title={`Костёр: топливо ${Math.round(fuel)}/100. Гаснет — Мгла подходит; у Столпа нужен живой огонь (≥ ${PILLAR_FUEL})`}
+    >
+      <span className="text-[13px] leading-none" style={{ color }}>
+        ᛚ
+      </span>
+      <span className="relative h-1.5 w-14 overflow-hidden rounded-full bg-black/60 sm:w-20">
+        <span
+          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-300 ${low ? "z-heartbeat" : ""}`}
+          style={{ width: `${Math.max(2, fuel)}%`, background: color }}
+        />
+        <span
+          className="absolute inset-y-0 w-px bg-[#c9a227]/60"
+          style={{ left: `${PILLAR_FUEL}%` }}
+          title={`порог обряда Столпа (${PILLAR_FUEL})`}
+        />
+      </span>
+      <span
+        className="hidden text-[10px] tabular-nums text-[#9a8f96] sm:inline"
+        title="Поленьев в руках — принеси к костру и нажми E"
+      >
+        полена ×{carried}
+      </span>
+      {rite && (
+        <span className="hidden text-[10px] text-[#c9a227] md:inline" title="Костёр достаточно жив для обряда Столпа">
+          ⸸ обряд готов
+        </span>
+      )}
+    </span>
+  );
+}
+
 function TopBar() {
   const night = useZarnitsa((s) => s.night);
   const gold = useZarnitsa((s) => s.state.gold);
   const setDrawer = useZarnitsa((s) => s.setDrawer);
   const togglePult = useZarnitsa((s) => s.togglePult);
   const toggleMap = useZarnitsa((s) => s.toggleMap);
+  const toggleJournal = useZarnitsa((s) => s.toggleJournal);
   const toTitle = useZarnitsa((s) => s.toTitle);
 
   return (
@@ -121,6 +174,7 @@ function TopBar() {
         {nightTitle(night)}
       </span>
       <NightChip />
+      <FireGauge />
       <span className="ml-auto flex items-center gap-2 text-xs">
         <span className="text-[#c9a227]" title="Проклятое золото отряда">
           ⛃ {gold}
@@ -130,6 +184,12 @@ function TopBar() {
           className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
         >
           карта
+        </button>
+        <button
+          onClick={toggleJournal}
+          className="hidden rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2] sm:inline"
+        >
+          летопись
         </button>
         <SoundButton />
         <button
@@ -407,7 +467,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M0.7 «Живая ночь»
+        3D-прототип · M0.8 «Дыхание костра»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -417,28 +477,29 @@ function TitleScreen() {
       </h1>
       <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-[#9a8f96]">
         Три ночи под Мглой: ходи по поляне, находи события, говори с отрядом.
-        17 ключевых решений, 9 дорожных находок, 4 спутника, движок предательства —
-        тот же, что в текстовом прототипе и Godot-каркасе.
-        Теперь с звуком, всплывающим доверием и автосохранением прогона.
+        Костёр живёт своим дыханием — носи поленья со штабелей, иначе Мгла
+        подойдёт к самым спинам. Столп присяги принимает только живой огонь.
+        Спутники бродят по лагерю, дозорные Мглы смотрят с опушки — и каждая
+        ночь ближе.
       </p>
       <div className="z-panel mt-6 grid max-w-xl gap-2 p-4 text-xs text-[#9a8f96] sm:grid-cols-2">
         <span>
           <b className="text-[#d6cfc2]">WASD / стрелки</b> — движение
         </span>
         <span>
-          <b className="text-[#d6cfc2]">E</b> — действие (маркер, спутник)
+          <b className="text-[#d6cfc2]">E</b> — действие (маркер, спутник, костёр)
         </span>
         <span>
-          <b className="text-[#d6cfc2]">M</b> — карта поляны
+          <b className="text-[#d6cfc2]">M</b> — карта поляны · <b className="text-[#d6cfc2]">J</b> — летопись
         </span>
         <span>
-          <b className="text-[#d6cfc2]">Золотые маркеры</b> — ключевые события
+          <b className="text-[#ff9a3c]">Костёр</b> — топливо тает, корми его
         </span>
         <span>
-          <b className="text-[#7a8aa0]">Серые маркеры</b> — дорога (не обязан)
+          <b className="text-[#7a8aa0]">Штабеля</b> — поленья (до двух в руках)
         </span>
         <span>
-          <b className="text-[#d6cfc2]">Разговоры</b> — поддержка или «уколоть»
+          <b className="text-[#c9a227]">Разговоры</b> — поддержка или «уколоть»
         </span>
       </div>
       {hasSave && (
@@ -500,6 +561,8 @@ function DawnOverlay() {
   const next = Math.min(night + 1, 3);
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-[#0d0a10]/78 p-4 backdrop-blur-sm">
+      {/* потоп рассвета: золотая волна по краям (M0.8) */}
+      <div className="z-dawnflood pointer-events-none absolute inset-0 z-[42]" />
       <div className="z-panel z-fadein max-w-lg p-7 text-center">
         <p className="text-xs uppercase tracking-[0.35em] text-[#9a8f96]">
           Ночь {night} пережита
@@ -549,11 +612,24 @@ function DawnOverlay() {
 function Prompt() {
   const nearest = useZarnitsa((s) => s.nearest);
   const screen = useZarnitsa((s) => s.screen);
+  const carried = useZarnitsa((s) => s.fire.carried);
+  const fuel = useZarnitsa((s) => s.fire.fuel);
   if (screen !== "play" || !nearest) return null;
-  const text =
-    nearest.kind === "event"
-      ? `Осмотреть: ${SCENE_EVENTS.find((e) => e.id === nearest.id)?.marker ?? "…"}`
-      : `Говорить: ${COMPANION_BY_ID[nearest.id]?.name ?? "…"}`;
+  let text: string;
+  if (nearest.kind === "event") {
+    text = `Осмотреть: ${SCENE_EVENTS.find((e) => e.id === nearest.id)?.marker ?? "…"}`;
+  } else if (nearest.kind === "companion") {
+    text = `Говорить: ${COMPANION_BY_ID[nearest.id]?.name ?? "…"}`;
+  } else if (nearest.kind === "fire") {
+    text =
+      carried > 0
+        ? `Бросить полено в костёр (+жар) · в руках ещё ${carried}`
+        : fuel < 25
+          ? "Костёр гаснет — нужны поленья со штабелей на поляне"
+          : "Костёр жив. Поленья можно принести со штабелей";
+  } else {
+    text = `Взять полено со штабеля (в руках ${carried}/2)`;
+  }
   return (
     <div className="pointer-events-none absolute bottom-36 left-1/2 z-20 -translate-x-1/2">
       <div className="z-panel z-fadein px-4 py-2 text-sm text-[#d6cfc2]">
@@ -604,9 +680,144 @@ function ControlsHint() {
   if (screen !== "play") return null;
   return (
     <div className="pointer-events-none absolute bottom-3 right-3 z-20 text-right text-[10px] leading-relaxed text-[#9a8f96]/85">
-      WASD — движение · E — действие · M — карта
+      WASD — движение · E — действие · M — карта · J — летопись
       <br />
-      отряд — верхняя панель
+      корми костёр — Столп принимает только живой огонь
+    </div>
+  );
+}
+
+/* ---------------- летопись на весь экран (J, M0.8) ---------------- */
+
+/** кривая доверия по записям летописи (последние точки) */
+function TrustSpark({ cid }: { cid: string }) {
+  const state = useZarnitsa((s) => s.state);
+  const pts = useMemo(() => {
+    const hist = state.log
+      .filter((e) => e.companionId === cid && typeof e.trustAfter === "number")
+      .slice(-26);
+    const vals = [...hist.map((e) => e.trustAfter as number), state.party[cid]?.trust ?? 50];
+    if (vals.length < 2) return null;
+    return vals
+      .map((v, i) => `${(i / (vals.length - 1)) * 88},${24 - (Math.max(0, Math.min(100, v)) / 100) * 22}`)
+      .join(" ");
+  }, [state.log, state.party, cid]);
+  const cs = state.party[cid];
+  const color =
+    cs?.frozen ? "#c9a227" : ["#7da87b", "#c9a227", "#b3542f", "#d95f3b", "#8c1f28", "#5a1020"][cs?.level ?? 0];
+  return (
+    <svg width="92" height="28" className="shrink-0" aria-hidden>
+      {pts ? (
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
+      ) : (
+        <line x1="2" y1="24" x2="90" y2="24" stroke="#32233a" strokeWidth="1.5" strokeDasharray="3 3" />
+      )}
+    </svg>
+  );
+}
+
+function JournalOverlay() {
+  const open = useZarnitsa((s) => s.journalOpen);
+  const state = useZarnitsa((s) => s.state);
+  const night = useZarnitsa((s) => s.night);
+  const toggle = useZarnitsa((s) => s.toggleJournal);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const logLen = state.log.length;
+
+  useEffect(() => {
+    // свежие записи внизу — автопрокрутка при открытии и дополнении
+    if (open && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [open, logLen]);
+
+  if (!open) return null;
+  return (
+    <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-[#0d0a10]/92 p-3 backdrop-blur-sm sm:p-6">
+      <div className="z-panel flex h-[88vh] w-full max-w-3xl flex-col p-4 sm:p-6">
+        <div className="flex items-center gap-3">
+          <h2 className="z-heading text-lg font-bold tracking-wide text-[#c9a227]">
+            Летопись похода
+          </h2>
+          <span className="text-[11px] uppercase tracking-[0.25em] text-[#9a8f96]">
+            Ночь {night} · ⛃ {state.gold}
+          </span>
+          <button
+            onClick={toggle}
+            className="ml-auto rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#7b2d35] hover:text-[#d6cfc2]"
+          >
+            ✕ J
+          </button>
+        </div>
+
+        {/* память каждого спутника */}
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {COMPANIONS.map((c) => {
+            const cs = state.party[c.id];
+            if (!cs) return null;
+            const color = cs.frozen
+              ? "#c9a227"
+              : ["#7da87b", "#c9a227", "#b3542f", "#d95f3b", "#8c1f28", "#5a1020"][cs.level];
+            return (
+              <div
+                key={c.id}
+                className={`rounded-sm border px-2 py-1.5 ${cs.gone ? "opacity-40" : ""}`}
+                style={{ borderColor: `${color}55` }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm text-[#c9a227]">{c.glyph}</span>
+                  <span className="z-heading text-[12px] font-semibold text-[#d6cfc2]">{c.name}</span>
+                  <span className="ml-auto text-[10px] font-bold tabular-nums" style={{ color }}>
+                    {cs.gone ? "ушёл" : fmtTrust(cs.trust)}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-end justify-between gap-1">
+                  <span className="text-[10px] leading-tight text-[#9a8f96]">
+                    {cs.memories.length} записей
+                    <br />
+                    {LADDER[cs.level].short}
+                  </span>
+                  <TrustSpark cid={c.id} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* полная летопись */}
+        <div
+          ref={scrollRef}
+          className="mt-3 max-h-96 flex-1 space-y-1 overflow-y-auto rounded-sm bg-black/30 p-2"
+        >
+          {state.log.map((entry) => (
+            <div
+              key={entry.id}
+              className={`rounded-sm px-2 py-1 text-[12px] leading-snug ${
+                LOG_CLASS[entry.kind] ?? "z-log-system"
+              }`}
+            >
+              <span className="text-[#d6cfc2]">{entry.text}</span>
+              {typeof entry.delta === "number" && Math.abs(entry.delta) > 0.001 && (
+                <span
+                  className={`ml-1.5 font-semibold tabular-nums ${
+                    entry.delta > 0 ? "text-[#8fbc8d]" : "text-[#e08a8a]"
+                  }`}
+                >
+                  Δ {fmtDelta(entry.delta)}
+                </span>
+              )}
+              {typeof entry.trustAfter === "number" && (
+                <span className="ml-1.5 text-[10px] tabular-nums text-[#9a8f96]">
+                  → {fmtTrust(entry.trustAfter)}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[10px] leading-snug text-[#9a8f96]">
+          Память отряда не тускнеет: каждая запись — тег + валентность, и ни одна не забывается.
+        </p>
+      </div>
     </div>
   );
 }
@@ -657,6 +868,116 @@ function Vignette() {
   );
 }
 
+/* ---------------- подсказка сверху (костёр/Столп/поленья) ---------------- */
+
+function HintToast() {
+  const hint = useZarnitsa((s) => s.hint);
+  const screen = useZarnitsa((s) => s.screen);
+  if (!hint || screen !== "play") return null;
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-14 z-30 -translate-x-1/2 px-3">
+      <div className="z-panel z-fadein border-[#c9a227]/45 px-4 py-2 text-center text-[13px] text-[#e8d48a]">
+        {hint}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- тач-управление (M0.8): джойстик + кнопки ---------------- */
+
+function TouchControls() {
+  const [coarse, setCoarse] = useState(false);
+  const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const dragRef = useRef(false);
+  const baseRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setCoarse(window.matchMedia("(pointer: coarse)").matches), 0);
+    return () => clearTimeout(t);
+  }, []);
+  if (!coarse) return null;
+
+  const R = 48;
+  const move = (e: React.PointerEvent) => {
+    const base = baseRef.current;
+    if (!base) return;
+    const rect = base.getBoundingClientRect();
+    let dx = e.clientX - (rect.left + rect.width / 2);
+    let dy = e.clientY - (rect.top + rect.height / 2);
+    const d = Math.hypot(dx, dy);
+    if (d > R) {
+      dx = (dx / d) * R;
+      dy = (dy / d) * R;
+    }
+    setKnob({ x: dx, y: dy });
+    touchInput.x = dx / R;
+    touchInput.y = -dy / R;
+    touchInput.active = true;
+  };
+  const end = () => {
+    dragRef.current = false;
+    setKnob({ x: 0, y: 0 });
+    touchInput.x = 0;
+    touchInput.y = 0;
+    touchInput.active = false;
+  };
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[25]">
+      {/* джойстик */}
+      <div
+        ref={baseRef}
+        onPointerDown={(e) => {
+          dragRef.current = true;
+          (e.target as Element).setPointerCapture(e.pointerId);
+          move(e);
+        }}
+        onPointerMove={(e) => {
+          if (dragRef.current) move(e);
+        }}
+        onPointerUp={end}
+        onPointerCancel={end}
+        className="pointer-events-auto absolute bottom-7 left-5 h-32 w-32 touch-none rounded-full border border-[#c9a227]/25 bg-black/35 backdrop-blur-sm"
+        aria-label="джойстик движения"
+      >
+        <div
+          className="absolute left-1/2 top-1/2 h-12 w-12 rounded-full border border-[#c9a227]/50 bg-[#c9a227]/15"
+          style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}
+        />
+      </div>
+      {/* кнопки действий */}
+      <div className="absolute bottom-7 right-5 flex flex-col items-end gap-2">
+        <button
+          onClick={() => {
+            sfxClick();
+            useZarnitsa.getState().interact();
+          }}
+          className="pointer-events-auto h-16 w-16 touch-none rounded-full border border-[#c9a227]/60 bg-[#7b2d35]/40 text-sm font-bold text-[#c9a227] backdrop-blur-sm active:bg-[#7b2d35]/70"
+          aria-label="действие"
+        >
+          E
+        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => useZarnitsa.getState().toggleMap()}
+            className="pointer-events-auto h-11 w-11 touch-none rounded-full border border-[#32233a] bg-black/45 text-[11px] text-[#9a8f96] backdrop-blur-sm active:border-[#c9a227]"
+            aria-label="карта"
+          >
+            M
+          </button>
+          <button
+            onClick={() => useZarnitsa.getState().toggleJournal()}
+            className="pointer-events-auto h-11 w-11 touch-none rounded-full border border-[#32233a] bg-black/45 text-[11px] text-[#9a8f96] backdrop-blur-sm active:border-[#c9a227]"
+            aria-label="летопись"
+          >
+            J
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- корневой HUD ---------------- */
 
 export function Hud() {
@@ -691,6 +1012,9 @@ export function Hud() {
       <ControlsHint />
       <Minimap />
       <Vignette />
+      <HintToast />
+      <TouchControls />
+      <JournalOverlay />
       {screen === "title" && <TitleScreen />}
       {screen === "event" && activeEventId && <EventModal key={activeEventId} />}
       <TalkMenu />

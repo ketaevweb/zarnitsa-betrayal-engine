@@ -1,6 +1,7 @@
 "use client";
 
-/* Игрок: WASD-движение, следящая камера, поиск ближайшего взаимодействия */
+/* Игрок: WASD/джойстик, следящая камера, поиск ближайшего взаимодействия,
+ * тик топлива костра, следы на снегу, шёпот Мглы (M0.8) */
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
@@ -8,7 +9,9 @@ import * as THREE from "three";
 import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { COMPANIONS } from "@/lib/zarnitsa/data";
-import { sfxStep } from "@/lib/zarnitsa/audio";
+import { WOOD_PILES } from "@/lib/zarnitsa/camp3d";
+import { sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
+import { addFootprint, companionLive, touchInput } from "./campLife";
 
 /** глобальное состояние клавиш (обновляется в GameCanvas) */
 export const keys = new Set<string>();
@@ -41,11 +44,15 @@ export function Player() {
   const group = useRef<THREE.Group>(null);
   const targetAngle = useRef(0);
   const stepAccum = useRef(0.22);
+  const whisperAcc = useRef(9);
 
   useFrame(({ camera }, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
     const store = useZarnitsa.getState();
-    const canMove = store.screen === "play";
+    const canMove = store.screen === "play" && !store.journalOpen;
+
+    // костёр горит, пока идёт ночь
+    store.tickFire(dt);
 
     let dx = 0;
     let dz = 0;
@@ -54,6 +61,11 @@ export function Player() {
       if (keys.has("KeyS") || keys.has("ArrowDown")) dz += 1;
       if (keys.has("KeyA") || keys.has("ArrowLeft")) dx -= 1;
       if (keys.has("KeyD") || keys.has("ArrowRight")) dx += 1;
+      // тач-джойстик
+      if (touchInput.active && (touchInput.x !== 0 || touchInput.y !== 0)) {
+        dx += touchInput.x;
+        dz += -touchInput.y; // джойстик вверх = вперёд (−z)
+      }
     }
     const len = Math.hypot(dx, dz);
     if (len > 0) {
@@ -62,11 +74,12 @@ export function Player() {
       POS.x += dx * 8.2 * dt;
       POS.z += dz * 8.2 * dt;
       targetAngle.current = Math.atan2(dx, dz);
-      // шаги по снегу — раз в ~0.34 с ходьбы
+      // шаги по снегу + след — раз в ~0.34 с ходьбы
       stepAccum.current += dt;
       if (stepAccum.current > 0.34) {
         stepAccum.current = 0;
         sfxStep();
+        addFootprint(POS.x, POS.z, targetAngle.current);
       }
     } else {
       stepAccum.current = Math.min(stepAccum.current, 0.2);
@@ -138,9 +151,18 @@ export function Player() {
       }
     }
 
+    // шёпот Мглы: при гаснущем костре часто, на III ночи — сам по себе
+    whisperAcc.current -= dt;
+    if (whisperAcc.current <= 0) {
+      const fuel = store.fire.fuel;
+      const chance = fuel < 22 ? 0.55 : store.night >= 3 ? 0.25 : 0.07;
+      if (store.screen !== "title" && Math.random() < chance) sfxWhisper();
+      whisperAcc.current = 7 + Math.random() * 7;
+    }
+
     // ближайшее взаимодействие
     if (canMove) {
-      let best: { kind: "event" | "companion"; id: string; d: number } | null = null;
+      let best: { kind: "event" | "companion" | "fire" | "wood"; id: string; d: number } | null = null;
       for (const ev of availableEvents(store.state, store.night, store.doneToday)) {
         const d = Math.hypot(POS.x - ev.pos[0], POS.z - ev.pos[1]);
         if (d < 2.8 && (!best || d < best.d)) best = { kind: "event", id: ev.id, d };
@@ -148,9 +170,18 @@ export function Player() {
       for (const c of COMPANIONS) {
         const cs = store.state.party[c.id];
         if (!cs || cs.gone) continue;
-        const p = CAMP_SPOTS[c.id];
-        const d = Math.hypot(POS.x - p[0], POS.z - p[1]);
+        const p = companionLive[c.id] ?? CAMP_SPOTS[c.id];
+        const d = Math.hypot(POS.x - p.x, POS.z - p.z);
         if (d < 2.5 && (!best || d < best.d)) best = { kind: "companion", id: c.id, d };
+      }
+      // костёр — подкормить
+      const dFire = Math.hypot(POS.x, POS.z);
+      if (dFire < 2.75 && (!best || dFire < best.d)) best = { kind: "fire", id: "fire", d: dFire };
+      // поленницы — взять полено
+      for (const p of WOOD_PILES) {
+        if ((store.fire.piles[p.id] ?? 0) <= 0) continue;
+        const d = Math.hypot(POS.x - p.x, POS.z - p.z);
+        if (d < 2.1 && (!best || d < best.d)) best = { kind: "wood", id: p.id, d };
       }
       store.setNearest(best ? { kind: best.kind, id: best.id } : null);
     } else {
@@ -186,6 +217,25 @@ export function Player() {
         <circleGeometry args={[0.5, 16]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.35} depthWrite={false} />
       </mesh>
+      {/* полено в руках, когда несёт */}
+      <CarriedLog />
     </group>
+  );
+}
+
+/** полено в руках игрока — видно, когда несёт дрова */
+function CarriedLog() {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    const carried = useZarnitsa.getState().fire.carried;
+    ref.current.visible = carried > 0;
+    ref.current.position.y = 0.55 + (carried > 1 ? 0.16 : 0);
+  });
+  return (
+    <mesh ref={ref} position={[0, 0.55, 0.34]} rotation={[0.3, 0, Math.PI / 2.2]} visible={false}>
+      <cylinderGeometry args={[0.06, 0.07, 0.62, 6]} />
+      <meshStandardMaterial color="#4a3524" roughness={1} />
+    </mesh>
   );
 }

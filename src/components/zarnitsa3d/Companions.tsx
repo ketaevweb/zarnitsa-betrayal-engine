@@ -1,6 +1,14 @@
 "use client";
 
-/* Спутники у костра: фигуры, таблички имён, свечение ступени лестницы */
+/* Спутники у костра: живое поведение M0.8.
+ *
+ * Каждый спутник — маленький конечный автомат:
+ *   idle (сидит/стоит у точки) → walk (бродит к точке) → idle → …
+ * Точки брожения: ближе к костру, к своему шатру, вбок.
+ * При ступени IV+ бродит ТОЛЬКО наружу, от огня, и отворачивается.
+ * Пауза присяги (frozen) — стоит на месте, ждёт Права слова.
+ * Живые позиции — в companionLive (Player/Minimap их читают).
+ */
 
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
@@ -9,6 +17,7 @@ import { COMPANIONS } from "@/lib/zarnitsa/data";
 import { CAMP_SPOTS } from "@/lib/zarnitsa/scenario3d";
 import { LEVEL_COLOR, useZarnitsa } from "@/lib/zarnitsa/store";
 import { labelSprite } from "@/lib/zarnitsa/sprites";
+import { companionLive } from "./campLife";
 import { playerPos } from "./Player";
 
 const CLOAK: Record<string, string> = {
@@ -18,6 +27,53 @@ const CLOAK: Record<string, string> = {
   ratmir: "#7a5a2e", // охра
 };
 
+const WALK_SPEED = 1.15;
+
+interface BotState {
+  mode: "idle" | "walk";
+  wait: number;
+  tx: number;
+  tz: number;
+  seed: number;
+}
+
+/** точка брожения: к костру / к шатру / вбок; при враждебности — только наружу */
+function pickWaypoint(spot: [number, number], hostile: boolean, seed: number): [number, number] {
+  const rnd = Math.sin(seed * 127.3) * 43758.5453;
+  const pick = rnd - Math.floor(rnd); // 0..1
+  let x: number;
+  let z: number;
+  if (hostile) {
+    // наружу от костра: 1.7–2.2 радиуса от точки
+    const k = 1.7 + pick * 0.5;
+    x = spot[0] * k;
+    z = spot[1] * k;
+  } else if (pick < 0.4) {
+    // ближе к костру, но не в огонь
+    const k = 0.55 + pick * 0.2;
+    x = spot[0] * k;
+    z = spot[1] * k;
+  } else if (pick < 0.7) {
+    // вбок по дуге
+    const a = Math.atan2(spot[1], spot[0]) + (pick < 0.55 ? 0.45 : -0.45);
+    const r = Math.hypot(spot[0], spot[1]);
+    x = Math.cos(a) * r;
+    z = Math.sin(a) * r;
+  } else {
+    // дальше от костра
+    const k = 1.35 + pick * 0.3;
+    x = spot[0] * k;
+    z = spot[1] * k;
+  }
+  // не наступать на костёр
+  const d = Math.hypot(x, z);
+  if (d < 2.5) {
+    x = (x / (d || 1)) * 2.5;
+    z = (z / (d || 1)) * 2.5;
+  }
+  return [x, z];
+}
+
 function Figure({ cid }: { cid: string }) {
   const def = COMPANIONS.find((c) => c.id === cid)!;
   const group = useRef<THREE.Group>(null);
@@ -26,30 +82,73 @@ function Figure({ cid }: { cid: string }) {
   const frozen = useZarnitsa((s) => s.state.party[cid]?.frozen ?? false);
   const gone = useZarnitsa((s) => s.state.party[cid]?.gone ?? false);
   const spot = CAMP_SPOTS[cid];
+  const bot = useRef<BotState>({ mode: "idle", wait: 2.5, tx: spot[0], tz: spot[1], seed: spot[0] * 7 + 3 });
 
   const nameplate = useMemo(() => labelSprite(def.name, def.title, 1.05), [def]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dtRaw) => {
     const g = group.current;
     if (!g) return;
+    const dt = Math.min(dtRaw, 0.05);
     const t = clock.getElapsedTime();
-    g.position.y = Math.sin(t * 1.6 + spot[0] * 3) * 0.035;
+    const b = bot.current;
 
-    // поворот: к игроку, когда близко; при ступени IV+ — спиной к игроку;
-    // иначе — к костру
-    const pp = playerPos();
-    const near = Math.hypot(pp.x - spot[0], pp.z - spot[1]) < 6;
-    const hostile = level >= 4;
-    const want = near
-      ? hostile
-        ? Math.atan2(spot[0] - pp.x, spot[1] - pp.z) // отвернулся
-        : Math.atan2(pp.x - spot[0], pp.z - spot[1])
-      : Math.atan2(-spot[0], -spot[1]);
-    const cur = g.rotation.y;
-    let diff = want - cur;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    g.rotation.y = cur + diff * 0.06;
+    // живая позиция для Player/Minimap
+    const live = (companionLive[cid] ??= { x: spot[0], z: spot[1] });
+    live.x = spot[0] + g.position.x;
+    live.z = spot[1] + g.position.z;
+
+    // поведение: бродит, если не заморожен Правом слова
+    let walking = false;
+    if (!frozen) {
+      if (b.mode === "idle") {
+        b.wait -= dt;
+        if (b.wait <= 0) {
+          b.seed += 1;
+          [b.tx, b.tz] = pickWaypoint(spot, level >= 4, b.seed);
+          b.mode = "walk";
+        }
+      } else {
+        const dx = b.tx - g.position.x;
+        const dz = b.tz - g.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.14) {
+          b.mode = "idle";
+          b.wait = 3.5 + Math.random() * 6;
+        } else {
+          const step = Math.min(d, WALK_SPEED * dt);
+          g.position.x += (dx / d) * step;
+          g.position.z += (dz / d) * step;
+          // смотрит по ходу движения
+          const want = Math.atan2(dx, dz);
+          g.rotation.y += shortAngle(want - g.rotation.y) * Math.min(1, dt * 6);
+          walking = true;
+        }
+      }
+    }
+
+    // покачивание: дыхание стоя, лёгкий шаг на ходу
+    g.position.y = walking
+      ? Math.abs(Math.sin(t * 7)) * 0.05
+      : Math.sin(t * 1.6 + spot[0] * 3) * 0.035;
+
+    // поворот к игроку, когда тот рядом и бот стоит:
+    // враждебный — спиной, обычный — лицом; иначе — по поведению выше
+    if (!walking) {
+      const pp = playerPos();
+      const px = spot[0] + g.position.x;
+      const pz = spot[1] + g.position.z;
+      const near = Math.hypot(pp.x - px, pp.z - pz) < 6;
+      if (near) {
+        const want = level >= 4
+          ? Math.atan2(px - pp.x, pz - pp.z) // отвернулся
+          : Math.atan2(pp.x - px, pp.z - pz);
+        g.rotation.y += shortAngle(want - g.rotation.y) * 0.06;
+      } else if (b.mode === "idle" && !frozen) {
+        const want = Math.atan2(-px, -pz); // к костру
+        g.rotation.y += shortAngle(want - g.rotation.y) * 0.02;
+      }
+    }
 
     // сфера ступени
     if (orb.current) {
@@ -97,6 +196,13 @@ function Figure({ cid }: { cid: string }) {
       <primitive object={nameplate} position={[0, 2.55, 0]} />
     </group>
   );
+}
+
+function shortAngle(a: number): number {
+  let d = a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
 
 export function Companions() {
