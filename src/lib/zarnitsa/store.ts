@@ -16,6 +16,7 @@ import {
   type SpeechOption,
 } from "./engine";
 import { WHISPERS } from "./whispers";
+import { BRUSHWOOD_SPOTS, DAY_WOOD_CAP, DAY_WOOD_FUEL, makeDayTalk } from "./day";
 import {
   NIGHT_COUNT,
   NIGHT_TITLES,
@@ -47,7 +48,7 @@ import {
   sfxWhisper,
 } from "./audio";
 
-export type Screen = "title" | "play" | "event" | "speech" | "dawn" | "end";
+export type Screen = "title" | "play" | "camp" | "event" | "speech" | "dawn" | "end";
 
 export interface Nearest {
   kind: "event" | "companion" | "fire" | "wood";
@@ -98,6 +99,8 @@ interface SaveShape {
   doneToday: string[];
   nightStart: Record<string, number>;
   fire?: FireState;
+  /** дневная фаза (M1.1): сейв сделан во время утреннего обхода */
+  day?: { done: string[]; wood: number };
   at: number;
 }
 
@@ -107,11 +110,12 @@ function persist(
   doneToday: string[],
   nightStart: Record<string, number>,
   fire?: FireState,
+  day?: { done: string[]; wood: number },
 ) {
   try {
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ state: s, night, doneToday, nightStart, fire, at: Date.now() } satisfies SaveShape),
+      JSON.stringify({ state: s, night, doneToday, nightStart, fire, day, at: Date.now() } satisfies SaveShape),
     );
   } catch {
     /* приватный режим — играем без сохранения */
@@ -216,6 +220,12 @@ interface ZarnitsaStore {
   whisper: { id: string } | null;
   /** принятые/отвергнутые шёпоты этой ночи (не больше двух за ночь) */
   whisperDone: string[];
+  /** дневная фаза (M1.1): идёт утренний обход — экран camp */
+  dayMode: boolean;
+  /** утренние дела: пройденные разговоры (dtalk_*) и вязанки (b1..b3) */
+  dayDone: string[];
+  /** запас хвороста: +топливо к завтрашнему костру */
+  dayWood: number;
 
   start: () => void;
   toTitle: () => void;
@@ -247,6 +257,12 @@ interface ZarnitsaStore {
   openWhisper: (id: string) => void;
   /** принять или отвергнуть шёпот */
   resolveWhisper: (accept: boolean) => void;
+  /** собрать вязанку хвороста (M1.1, только днём) */
+  collectBrushwood: (id: string) => void;
+  /** утренний разговор со спутником (M1.1, только днём) */
+  openDayTalk: (cid: string) => void;
+  /** дождаться сумерек — уйти из лагеря в ночь */
+  startNight: () => void;
 }
 
 function endingOf(state: GameState): Ending {
@@ -295,6 +311,9 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   journalOpen: false,
   whisper: null,
   whisperDone: [],
+  dayMode: false,
+  dayDone: [],
+  dayWood: 0,
 
   start: () => {
     audioStart();
@@ -322,6 +341,9 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       fire,
       hint: null,
       journalOpen: false,
+      dayMode: false,
+      dayDone: [],
+      dayWood: 0,
     });
     persist(fresh, 1, [], nightStart, fire);
     set({ hasSave: true });
@@ -346,7 +368,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     if (!save) return;
     audioStart();
     set({
-      screen: save.state.speechTarget ? "speech" : "play",
+      screen: save.day ? "camp" : save.state.speechTarget ? "speech" : "play",
       state: save.state,
       night: save.night,
       doneToday: save.doneToday,
@@ -358,22 +380,32 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       drawer: null,
       pultOpen: false,
       ending: null,
-      intro: NIGHT_TITLES[save.night],
+      intro: save.day ? null : NIGHT_TITLES[save.night],
       nightSummary: null,
       moves: get().moves + 1,
       hasSave: true,
       fire: save.fire ?? freshFire(),
       hint: null,
       journalOpen: false,
+      dayMode: !!save.day,
+      dayDone: save.day?.done ?? [],
+      dayWood: save.day?.wood ?? 0,
     });
   },
 
   refreshHasSave: () => set({ hasSave: !!readSave() }),
 
-  /** клавиша E: маркер, спутник, костёр или поленница */
+  /** клавиша E: маркер, спутник, костёр или поленница (днём — дела обхода) */
   interact: () => {
     const { screen, nearest, whisper } = get();
-    if (screen !== "play" || !nearest || whisper) return;
+    if ((screen !== "play" && screen !== "camp") || !nearest || whisper) return;
+    if (screen === "camp") {
+      // дневной обход: разговоры, хворост; костёр дремлет
+      if (nearest.kind === "companion") get().openDayTalk(nearest.id);
+      else if (nearest.kind === "wood") get().collectBrushwood(nearest.id);
+      else if (nearest.kind === "fire") get().setHint("Костёр дремлет под присмотром отряда — до сумерек");
+      return;
+    }
     if (nearest.kind === "event") get().openEvent(nearest.id);
     else if (nearest.kind === "fire") get().feedFire();
     else if (nearest.kind === "wood") get().pickupWood(nearest.id);
@@ -410,6 +442,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const choice = activeEvent.choices[Math.min(choiceIndex, activeEvent.choices.length - 1)];
     const isTalk = activeEvent.id.startsWith("talk_");
     const isNeedle = activeEvent.id.includes("_needle_");
+    const isDayTalk = activeEvent.id.startsWith("dtalk_");
 
     // звук: укол — диссонанс + тряска, обычный выбор — клик
     if (isNeedle) {
@@ -444,14 +477,24 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       return;
     }
     if (next.speechTarget) {
+      // дневной разговор считается сделанным сразу — Право слова не откладывает его
+      const dayDone = isDayTalk ? [...get().dayDone, activeEvent.id] : get().dayDone;
       set({
         state: next,
         screen: "speech",
         activeEvent: null,
-        pendingDoneId: isTalk ? null : activeEvent.id,
+        pendingDoneId: isTalk || isDayTalk ? null : activeEvent.id,
         doneToday: done,
+        dayDone,
         talkMenu: null,
       });
+      return;
+    }
+    // утренний разговор (M1.1): помечаем дневное дело, возвращаемся в лагерь
+    if (isDayTalk) {
+      const dayDone = [...get().dayDone, activeEvent.id];
+      set({ state: next, screen: "camp", activeEvent: null, dayDone, talkMenu: null });
+      persist(next, get().night, doneToday, get().nightStart, get().fire, { done: dayDone, wood: get().dayWood });
       return;
     }
     set({ state: next, screen: "play", activeEvent: null, doneToday: done, talkMenu: null });
@@ -480,8 +523,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       return;
     }
     const done = pendingDoneId ? [...doneToday, pendingDoneId] : doneToday;
-    set({ state: next, screen: "play", pendingDoneId: null, doneToday: done });
-    persist(next, get().night, done, get().nightStart, get().fire);
+    set({ state: next, screen: get().dayMode ? "camp" : "play", pendingDoneId: null, doneToday: done });
+    persist(next, get().night, done, get().nightStart, get().fire, get().dayMode ? { done: get().dayDone, wood: get().dayWood } : undefined);
     getAndApplyDawn(set, get, next, done);
   },
 
@@ -495,7 +538,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   togglePult: () => set({ pultOpen: !get().pultOpen }),
 
   toggleMap: () => {
-    if (get().screen !== "play") return;
+    const s = get().screen;
+    if (s !== "play" && s !== "camp") return;
     set({ mapOpen: !get().mapOpen });
   },
 
@@ -517,15 +561,43 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     }
   },
 
+  /** рассвет отступил — игрок остаётся в лагере: утренний обход (M1.1) */
   dawnGo: () => {
     const { night, state, fire } = get();
+    mglLive.closest = 999;
+    set({
+      screen: "camp",
+      dayMode: true,
+      dayDone: [],
+      dayWood: 0,
+      activeEvent: null,
+      pendingDoneId: null,
+      nearest: null,
+      intro: null,
+      nightSummary: null,
+      talkMenu: null,
+      mapOpen: false,
+      moves: get().moves + 1,
+      hint: null,
+      journalOpen: false,
+      fire: { ...fire, carried: 0 },
+    });
+    persist(state, night, get().doneToday, get().nightStart, get().fire, { done: [], wood: 0 });
+  },
+
+  /** сумерки — костёр разводят заново, ночь N+1 начинается */
+  startNight: () => {
+    const { night, state, fire, dayWood } = get();
     const nextNight = Math.min(night + 1, NIGHT_COUNT);
     const nightStart = snapshotTrust(state);
-    // за день отряд заготовил дрова и разжёг костёр к сумеркам
-    const nextFire = freshFire(fire.fuel);
+    // за день отряд заготовил дрова и разжёг костёр к сумеркам (M1.1: + хворост)
+    const nextFire = freshFire(Math.min(100, Math.max(65, fire.fuel) + dayWood));
     mglLive.closest = 999;
     set({
       screen: "play",
+      dayMode: false,
+      dayDone: [],
+      dayWood: 0,
       night: nextNight,
       doneToday: [],
       whisperDone: [],
@@ -539,8 +611,36 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       fire: nextFire,
       hint: null,
       journalOpen: false,
+      mapOpen: false,
     });
     persist(state, nextNight, [], nightStart, nextFire);
+  },
+
+  /** вязанка хвороста: +топливо к завтрашнему костру (M1.1) */
+  collectBrushwood: (id) => {
+    const { dayDone, dayWood } = get();
+    if (dayDone.includes(id) || !BRUSHWOOD_SPOTS.some((b) => b.id === id)) return;
+    sfxPickup();
+    const wood = Math.min(DAY_WOOD_CAP, dayWood + DAY_WOOD_FUEL);
+    const done = [...dayDone, id];
+    set({ dayDone: done, dayWood: wood });
+    const left = DAY_WOOD_CAP - wood;
+    get().setHint(
+      left > 0
+        ? `Вязанка хвороста в общий штабель — завтрашний костёр крепче (+${DAY_WOOD_FUEL} жара)`
+        : "Хвороста довольно — завтрашний костёр будет полон сил",
+    );
+    persist(get().state, get().night, get().doneToday, get().nightStart, get().fire, { done, wood });
+  },
+
+  /** утренний разговор со спутником (M1.1) */
+  openDayTalk: (cid) => {
+    const { screen, dayDone } = get();
+    if (screen !== "camp") return;
+    const ev = makeDayTalk(cid, get().night);
+    if (!ev || dayDone.includes(ev.id)) return;
+    sfxReveal();
+    set({ screen: "event", activeEvent: ev, talkMenu: null });
   },
 
   tickFire: (dt) => {
@@ -591,7 +691,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   },
 
   toggleJournal: () => {
-    if (get().screen !== "play") return;
+    const s = get().screen;
+    if (s !== "play" && s !== "camp") return;
     set({ journalOpen: !get().journalOpen });
   },
 
@@ -654,14 +755,15 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   },
 }));
 
-/** все события ночи пройдены → рассвет (или финал на III ночи) */
+/** все события ночи пройдены → рассвет (или финал на III ночи).
+ *  Днём (утренний обход) не зовётся — рассвет уже прошёл. */
 function getAndApplyDawn(
   set: (partial: Partial<ZarnitsaStore>) => void,
   get: () => ZarnitsaStore,
   next: GameState,
   doneToday: string[],
 ) {
-  if (next.finished) return;
+  if (next.finished || get().dayMode) return;
   const night = get().night;
   const list = nightEvents(night);
   const allDone = list.every((e) => doneToday.includes(e.id));

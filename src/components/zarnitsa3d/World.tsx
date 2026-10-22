@@ -237,7 +237,8 @@ function Watcher({ angle, idx }: { angle: number; idx: number }) {
 
 function Watchers() {
   const screen = useZarnitsa((s) => s.screen);
-  if (screen === "title") return null;
+  // днём (утренний обход) Мгла отступает до сумерек
+  if (screen === "title" || screen === "camp") return null;
   return (
     <group>
       {WATCHER_ANGLES.map((a, i) => (
@@ -483,17 +484,22 @@ function Scatter() {
 /* ---------------- сборка мира ---------------- */
 
 export function World() {
+  const isDay = useZarnitsa((s) => s.screen) === "camp";
   return (
     <group>
-      {/* луна */}
-      <mesh position={[-44, 36, -64]}>
-        <sphereGeometry args={[3.6, 24, 24]} />
-        <meshBasicMaterial color="#e6e2d4" />
-      </mesh>
-      <mesh position={[-44, 36, -64]}>
-        <sphereGeometry args={[5.4, 24, 24]} />
-        <meshBasicMaterial color="#8d94b8" transparent opacity={0.16} depthWrite={false} />
-      </mesh>
+      {/* луна — днём за тучами */}
+      {!isDay && (
+        <>
+          <mesh position={[-44, 36, -64]}>
+            <sphereGeometry args={[3.6, 24, 24]} />
+            <meshBasicMaterial color="#e6e2d4" />
+          </mesh>
+          <mesh position={[-44, 36, -64]}>
+            <sphereGeometry args={[5.4, 24, 24]} />
+            <meshBasicMaterial color="#8d94b8" transparent opacity={0.16} depthWrite={false} />
+          </mesh>
+        </>
+      )}
 
       {/* земля */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>

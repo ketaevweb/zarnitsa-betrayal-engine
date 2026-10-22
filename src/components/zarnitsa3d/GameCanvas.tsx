@@ -9,13 +9,14 @@ import * as THREE from "three";
 import { World } from "./World";
 import { Player, keys, playerPos } from "./Player";
 import { Companions } from "./Companions";
+import { companionLive } from "./campLife";
 import { Markers } from "./Markers";
 import { Snow } from "./Particles";
 import { Floaters } from "./Floaters";
 import { Footprints } from "./Footprints";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, SCENE_EVENTS } from "@/lib/zarnitsa/scenario3d";
-import { DAWN_PALETTE, NIGHT_PALETTES, WOOD_PILES, type Palette } from "@/lib/zarnitsa/camp3d";
+import { DAWN_PALETTE, DAY_PALETTE, NIGHT_PALETTES, WOOD_PILES, type Palette } from "@/lib/zarnitsa/camp3d";
 
 const C_A = new THREE.Color();
 const C_B = new THREE.Color();
@@ -37,7 +38,11 @@ function SkyLight() {
     if (!bgObj.current) bgObj.current = (scene.background as THREE.Color) ?? null;
     const { night, screen, fire } = useZarnitsa.getState();
     const pal: Palette =
-      screen === "dawn" ? DAWN_PALETTE : NIGHT_PALETTES[night] ?? NIGHT_PALETTES[1];
+      screen === "dawn"
+        ? DAWN_PALETTE
+        : screen === "camp"
+          ? DAY_PALETTE
+          : (NIGHT_PALETTES[night] ?? NIGHT_PALETTES[1]);
     const k = 1 - Math.exp(-dt * 1.3);
     const heat = fire.fuel / 100;
 
@@ -72,6 +77,8 @@ function SkyLight() {
 }
 
 export default function GameCanvas() {
+  const isDay = useZarnitsa((s) => s.screen) === "camp";
+
   useEffect(() => {
     // dev-параметр: /?tp=e13 — телепорт к маркеру, /?tp=gavrila — к спутнику,
     // /?tp=w1 — к поленнице (M0.8)
@@ -90,11 +97,13 @@ export default function GameCanvas() {
       useZarnitsa.setState({ tour: true });
     }
 
-    // dev-хук для автотестов (agent-browser): позиция игрока + стор
+    // dev-хук для автотестов (agent-browser): позиция игрока + стор + события
     (window as unknown as Record<string, unknown>).__zarnitsa = {
       pos: () => ({ x: playerPos().x, z: playerPos().z }),
       tp: (x: number, z: number) => playerPos().set(x, 0, z),
       store: useZarnitsa,
+      events: SCENE_EVENTS,
+      companions: companionLive,
     };
 
     const down = (e: KeyboardEvent) => {
@@ -136,7 +145,9 @@ export default function GameCanvas() {
     >
       <color attach="background" args={["#0a0812"]} />
       <fog attach="fog" args={["#0a0812", 16, 62]} />
-      <Stars radius={150} depth={40} count={2600} factor={4} saturation={0} fade speed={0.6} />
+      {!isDay && (
+        <Stars radius={150} depth={40} count={2600} factor={4} saturation={0} fade speed={0.6} />
+      )}
       <SkyLight />
       <World />
       <Player />

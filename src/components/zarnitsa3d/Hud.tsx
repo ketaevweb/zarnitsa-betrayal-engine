@@ -8,6 +8,7 @@ import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
 import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
 import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
 import { PILLAR_FUEL, mglLive } from "@/lib/zarnitsa/camp3d";
+import { DAY_TASKS_TOTAL, dayTitle } from "@/lib/zarnitsa/day";
 import { WHISPERS } from "@/lib/zarnitsa/whispers";
 import {
   audioEnabled,
@@ -103,6 +104,27 @@ function SoundButton() {
 function NightChip() {
   const night = useZarnitsa((s) => s.night);
   const doneToday = useZarnitsa((s) => s.doneToday);
+  const dayDone = useZarnitsa((s) => s.dayDone);
+  const dayMode = useZarnitsa((s) => s.dayMode);
+  const state = useZarnitsa((s) => s.state);
+
+  // дневной обход (M1.1): сколько утренних дел осталось
+  if (dayMode) {
+    const talksLeft = COMPANIONS.filter(
+      (c) => !state.party[c.id]?.gone && !dayDone.includes(`dtalk_${c.id}_d${night + 1}`),
+    ).length;
+    const woodLeft = 3 - dayDone.filter((d) => d.startsWith("b")).length;
+    const left = talksLeft + woodLeft;
+    return (
+      <span
+        className="hidden rounded-sm border border-[#32233a] bg-black/30 px-2 py-0.5 text-[11px] tabular-nums text-[#9a8f96] md:inline"
+        title="Утренние дела: разговоры с отрядом и вязанки хвороста для завтрашнего костра"
+      >
+        дела дня: осталось <b className="text-[#d6cfc2]">{left}</b>/{DAY_TASKS_TOTAL}
+      </span>
+    );
+  }
+
   const list = nightEvents(night);
   const k = list.filter((e) => doneToday.includes(e.id)).length;
   return (
@@ -120,12 +142,14 @@ function NightChip() {
 function FireGauge() {
   const fuel = useZarnitsa((s) => s.fire.fuel);
   const carried = useZarnitsa((s) => s.fire.carried);
+  const dayMode = useZarnitsa((s) => s.dayMode);
   const low = fuel < 25;
   const rite = fuel >= PILLAR_FUEL;
   const color = fuel <= 0 ? "#5a5560" : low ? "#d95f3b" : "#ff9a3c";
-  // живой щит: что делает кольцо Мглы прямо сейчас (M0.9)
-  const shield =
-    fuel <= 0
+  // живой щит: что делает кольцо Мглы прямо сейчас (M0.9); днём костёр дремлет (M1.1)
+  const shield = dayMode
+    ? { text: "костёр дремлет", c: "#9a8f96" }
+    : fuel <= 0
       ? { text: "Мгла в кольце!", c: "#e04a4a" }
       : low
         ? { text: "Мгла подступает", c: "#d95f3b" }
@@ -154,7 +178,7 @@ function FireGauge() {
       <span
         className="hidden text-[10px] font-semibold leading-none sm:inline"
         style={{ color: shield.c }}
-        title="Огонь — щит: слабеет костёр, ближе кольцо Мглы"
+        title={dayMode ? "До сумерек огонь не нужен — хворост копится на завтра" : "Огонь — щит: слабеет костёр, ближе кольцо Мглы"}
       >
         {shield.text}
       </span>
@@ -175,6 +199,7 @@ function FireGauge() {
 
 function TopBar() {
   const night = useZarnitsa((s) => s.night);
+  const dayMode = useZarnitsa((s) => s.dayMode);
   const gold = useZarnitsa((s) => s.state.gold);
   const setDrawer = useZarnitsa((s) => s.setDrawer);
   const togglePult = useZarnitsa((s) => s.togglePult);
@@ -188,7 +213,7 @@ function TopBar() {
         ЗАРНИЦА<span className="text-[#7b2d35]">: КЛЯТВА</span>
       </span>
       <span className="hidden text-[11px] uppercase tracking-[0.25em] text-[#c9a227] sm:inline">
-        {nightTitle(night)}
+        {dayMode ? dayTitle(night + 1) || "Утренний обход" : nightTitle(night)}
       </span>
       <NightChip />
       <FireGauge />
@@ -263,11 +288,12 @@ function EventModal() {
 
   useEffect(() => {
     // разговоры открываются мягче, чем ключевые события (у тех — «удар» в openEvent)
-    if (ev?.id.startsWith("talk_")) sfxOpen();
+    if (ev?.id.startsWith("talk_") || ev?.id.startsWith("dtalk_")) sfxOpen();
   }, [ev]);
 
   if (!ev) return null;
   const isTalk = ev.id.startsWith("talk_");
+  const isDayTalk = ev.id.startsWith("dtalk_");
 
   // распределение напечатанных символов по абзацам (без мутаций и без хуков)
   const starts: number[] = [];
@@ -292,7 +318,7 @@ function EventModal() {
       >
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-sm border border-[#32233a] px-2 py-0.5 text-[11px] text-[#9a8f96]">
-            {isTalk ? "разговор у костра" : `Ночь ${ev.day} · ${ev.phase}`}
+            {isDayTalk ? `День ${ev.day} · ${ev.phase}` : isTalk ? "разговор у костра" : `Ночь ${ev.day} · ${ev.phase}`}
           </span>
           {ev.isOrder && (
             <span className="rounded-sm border border-[#b3542f] bg-[#b3542f]/10 px-2 py-0.5 text-[11px] font-semibold text-[#b3542f]">
@@ -484,7 +510,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.0 «Шёпоты Мглы»
+        3D-прототип · M1.1 «Утренний обход»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -635,7 +661,8 @@ function DawnOverlay() {
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-[#d6cfc2]">
           Мгла отступает до сумерек — но записи в памяти отряда не тускнеют.
-          Впереди: {nightTitle(next)}.
+          Обойди лагерь: поговори с отрядом, собери хворост — к ночи он
+          разгорится ярче. Впереди: {nightTitle(next)}.
         </p>
         {mglLive.closest < 900 && (
           <p className="mt-2 text-xs leading-relaxed text-[#9a8f96]">
@@ -670,9 +697,53 @@ function DawnOverlay() {
           onClick={dawnGo}
           className="mt-5 rounded-sm border border-[#c9a227] bg-[#7b2d35]/25 px-8 py-3 font-semibold text-[#c9a227] transition-all hover:bg-[#7b2d35]/45"
         >
-          Идти дальше →
+          Обойти лагерь (до сумерек) →
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ---------------- дневная фаза (M1.1): дождаться сумерек ---------------- */
+
+function DayBar() {
+  const screen = useZarnitsa((s) => s.screen);
+  const night = useZarnitsa((s) => s.night);
+  const dayDone = useZarnitsa((s) => s.dayDone);
+  const dayWood = useZarnitsa((s) => s.dayWood);
+  const state = useZarnitsa((s) => s.state);
+  const startNight = useZarnitsa((s) => s.startNight);
+  if (screen !== "camp") return null;
+
+  const talksLeft = COMPANIONS.filter(
+    (c) => !state.party[c.id]?.gone && !dayDone.includes(`dtalk_${c.id}_d${night + 1}`),
+  ).length;
+  const woodLeft = 3 - dayDone.filter((d) => d.startsWith("b")).length;
+  const left = talksLeft + woodLeft;
+  const next = Math.min(night + 1, 3);
+
+  return (
+    <div className="pointer-events-auto absolute bottom-16 right-3 z-20 flex flex-col items-end gap-2 sm:bottom-20">
+      <div className="z-panel px-3 py-1.5 text-right text-[11px] leading-relaxed text-[#9a8f96]">
+        {left > 0 ? (
+          <>
+            остались дела:
+            {talksLeft > 0 && <b className="text-[#d6cfc2]"> разговоры ×{talksLeft}</b>}
+            {talksLeft > 0 && woodLeft > 0 && " ·"}
+            {woodLeft > 0 && <b className="text-[#d6cfc2]"> хворост ×{woodLeft}</b>}
+          </>
+        ) : (
+          <b className="text-[#c9a227]">Все дела сделаны — лагерь готов к сумеркам</b>
+        )}
+        <br />
+        хвороста на завтра: <b className="text-[#c98a3a]">+{dayWood} жара</b>
+      </div>
+      <button
+        onClick={startNight}
+        className="rounded-sm border border-[#c9a227] bg-[#0d0a10]/70 px-5 py-2.5 text-sm font-semibold text-[#c9a227] backdrop-blur-sm transition-all hover:bg-[#7b2d35]/45"
+      >
+        Дождаться сумерек → Ночь {next}
+      </button>
     </div>
   );
 }
@@ -684,9 +755,18 @@ function Prompt() {
   const screen = useZarnitsa((s) => s.screen);
   const carried = useZarnitsa((s) => s.fire.carried);
   const fuel = useZarnitsa((s) => s.fire.fuel);
-  if (screen !== "play" || !nearest) return null;
+  if ((screen !== "play" && screen !== "camp") || !nearest) return null;
   let text: string;
-  if (nearest.kind === "event") {
+  if (screen === "camp") {
+    // дневной обход (M1.1)
+    if (nearest.kind === "companion") {
+      text = `Поговорить на утренней зоне: ${COMPANION_BY_ID[nearest.id]?.name ?? "…"}`;
+    } else if (nearest.kind === "wood") {
+      text = "Собрать вязанку хвороста (+8 жара завтрашнему костру)";
+    } else {
+      text = "Костёр дремлет — греться бессмысленно, хворост копится на завтра";
+    }
+  } else if (nearest.kind === "event") {
     text = `Осмотреть: ${SCENE_EVENTS.find((e) => e.id === nearest.id)?.marker ?? "…"}`;
   } else if (nearest.kind === "companion") {
     text = `Говорить: ${COMPANION_BY_ID[nearest.id]?.name ?? "…"}`;
@@ -914,7 +994,8 @@ function Vignette() {
     return () => setHeartbeat(0);
   }, [hot, screen, level]);
 
-  if (screen === "title" || screen === "end" || intensity < 0.02) return null;
+  // днём (M1.1) виньетка отпускает — утро даёт передышку
+  if (screen === "title" || screen === "end" || screen === "camp" || intensity < 0.02) return null;
   return (
     <>
       <div
@@ -943,7 +1024,7 @@ function Vignette() {
 function HintToast() {
   const hint = useZarnitsa((s) => s.hint);
   const screen = useZarnitsa((s) => s.screen);
-  if (!hint || screen !== "play") return null;
+  if (!hint || (screen !== "play" && screen !== "camp")) return null;
   return (
     <div className="pointer-events-none absolute left-1/2 top-14 z-30 -translate-x-1/2 px-3">
       <div className="z-panel z-fadein border-[#c9a227]/45 px-4 py-2 text-center text-[13px] text-[#e8d48a]">
@@ -1087,19 +1168,20 @@ export function Hud() {
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
       {screen !== "title" && <TopBar />}
       {screen !== "title" && <Pult />}
-      {screen === "play" && (
+      {screen === "play" || screen === "camp" ? (
         <div className="mt-auto flex gap-2 px-3 pb-16">
           {COMPANIONS.map((c) => (
             <MiniCard key={c.id} cid={c.id} />
           ))}
         </div>
-      )}
+      ) : null}
       <Prompt />
       <LogTicker />
       <ControlsHint />
       <Minimap />
       <Vignette />
       <HintToast />
+      <DayBar />
       <TouchControls />
       <JournalOverlay />
       <WhisperOverlay />

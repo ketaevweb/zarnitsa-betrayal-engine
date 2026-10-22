@@ -10,6 +10,7 @@ import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { COMPANIONS } from "@/lib/zarnitsa/data";
 import { WOOD_PILES, dreadLevel, mglLive, watcherTargetR } from "@/lib/zarnitsa/camp3d";
+import { BRUSHWOOD_SPOTS } from "@/lib/zarnitsa/day";
 import { pickWhisper } from "@/lib/zarnitsa/whispers";
 import { setDread, sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
 import { addFootprint, companionLive, touchInput } from "./campLife";
@@ -54,7 +55,9 @@ export function Player() {
   useFrame(({ camera }, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
     const store = useZarnitsa.getState();
-    const canMove = store.screen === "play" && !store.journalOpen && !store.whisper;
+    const isDay = store.screen === "camp";
+    const canMove =
+      (store.screen === "play" || isDay) && !store.journalOpen && !store.whisper;
 
     // костёр горит, пока идёт ночь
     store.tickFire(dt);
@@ -93,8 +96,8 @@ export function Player() {
       stepAccum.current = Math.min(stepAccum.current, 0.2);
     }
 
-    // режим экскурсии: авто-ход к ближайшему доступному маркеру
-    if (canMove && store.tour && !store.activeEvent) {
+    // режим экскурсии: авто-ход к ближайшему доступному маркеру (только ночью)
+    if (canMove && store.tour && !isDay && !store.activeEvent) {
       const list = availableEvents(store.state, store.night, store.doneToday);
       if (list.length > 0) {
         const ev = list[0];
@@ -167,8 +170,11 @@ export function Player() {
       }
     }
 
-    // Мгла: живое кольцо — подступ по топливу, память о ближайшем круге (M0.9)
-    if (store.screen !== "title") {
+    // Мгла: живое кольцо — подступ по топливу, память о ближайшем круге (M0.9).
+    // Днём (M1.1) Мгла отступила — стужа отпускает.
+    if (isDay) {
+      setDread(0);
+    } else if (store.screen !== "title") {
       const tr = watcherTargetR(store.night, store.fire.fuel);
       if (tr < mglLive.closest) mglLive.closest = tr;
       setDread(dreadLevel(store.fire.fuel));
@@ -204,40 +210,62 @@ export function Player() {
       }
     }
 
-    // шёпот Мглы: при гаснущем костре часто, на III ночи — сам по себе
+    // шёпот Мглы: при гаснущем костре часто, на III ночи — сам по себе (только ночью)
     whisperAcc.current -= dt;
     if (whisperAcc.current <= 0) {
       const fuel = store.fire.fuel;
       const dl = dreadLevel(fuel);
       const chance = fuel < 22 ? 0.55 : store.night >= 3 ? 0.25 : 0.07;
-      if (store.screen !== "title" && Math.random() < chance + dl * 0.3) sfxWhisper();
+      if (store.screen === "play" && Math.random() < chance + dl * 0.3) sfxWhisper();
       whisperAcc.current = 7 + Math.random() * 7 - dl * 3.5;
     }
 
-    // ближайшее взаимодействие
+    // ближайшее взаимодействие: ночью — события/поленницы, днём — дела обхода (M1.1)
     if (canMove) {
       let best: { kind: "event" | "companion" | "fire" | "wood"; id: string; d: number } | null = null;
-      for (const ev of availableEvents(store.state, store.night, store.doneToday)) {
-        const d = Math.hypot(POS.x - ev.pos[0], POS.z - ev.pos[1]);
-        if (d < 2.8 && (!best || d < best.d)) best = { kind: "event", id: ev.id, d };
+      if (isDay) {
+        // утренние разговоры: с кем ещё не говорил
+        for (const c of COMPANIONS) {
+          const cs = store.state.party[c.id];
+          if (!cs || cs.gone) continue;
+          if (store.dayDone.includes(`dtalk_${c.id}_d${store.night + 1}`)) continue;
+          const p = companionLive[c.id] ?? CAMP_SPOTS[c.id];
+          const d = Math.hypot(POS.x - p.x, POS.z - p.z);
+          if (d < 2.5 && (!best || d < best.d)) best = { kind: "companion", id: c.id, d };
+        }
+        // вязанки хвороста (M1.1)
+        for (const b of BRUSHWOOD_SPOTS) {
+          if (store.dayDone.includes(b.id)) continue;
+          const d = Math.hypot(POS.x - b.x, POS.z - b.z);
+          if (d < 2.1 && (!best || d < best.d)) best = { kind: "wood", id: b.id, d };
+        }
+        // костёр дремлет — можно подойти и погреться
+        const dFireD = Math.hypot(POS.x, POS.z);
+        if (dFireD < 2.75 && (!best || dFireD < best.d)) best = { kind: "fire", id: "fire", d: dFireD };
+        store.setNearest(best ? { kind: best.kind, id: best.id } : null);
+      } else {
+        for (const ev of availableEvents(store.state, store.night, store.doneToday)) {
+          const d = Math.hypot(POS.x - ev.pos[0], POS.z - ev.pos[1]);
+          if (d < 2.8 && (!best || d < best.d)) best = { kind: "event", id: ev.id, d };
+        }
+        for (const c of COMPANIONS) {
+          const cs = store.state.party[c.id];
+          if (!cs || cs.gone) continue;
+          const p = companionLive[c.id] ?? CAMP_SPOTS[c.id];
+          const d = Math.hypot(POS.x - p.x, POS.z - p.z);
+          if (d < 2.5 && (!best || d < best.d)) best = { kind: "companion", id: c.id, d };
+        }
+        // костёр — подкормить
+        const dFire = Math.hypot(POS.x, POS.z);
+        if (dFire < 2.75 && (!best || dFire < best.d)) best = { kind: "fire", id: "fire", d: dFire };
+        // поленницы — взять полено
+        for (const p of WOOD_PILES) {
+          if ((store.fire.piles[p.id] ?? 0) <= 0) continue;
+          const d = Math.hypot(POS.x - p.x, POS.z - p.z);
+          if (d < 2.1 && (!best || d < best.d)) best = { kind: "wood", id: p.id, d };
+        }
+        store.setNearest(best ? { kind: best.kind, id: best.id } : null);
       }
-      for (const c of COMPANIONS) {
-        const cs = store.state.party[c.id];
-        if (!cs || cs.gone) continue;
-        const p = companionLive[c.id] ?? CAMP_SPOTS[c.id];
-        const d = Math.hypot(POS.x - p.x, POS.z - p.z);
-        if (d < 2.5 && (!best || d < best.d)) best = { kind: "companion", id: c.id, d };
-      }
-      // костёр — подкормить
-      const dFire = Math.hypot(POS.x, POS.z);
-      if (dFire < 2.75 && (!best || dFire < best.d)) best = { kind: "fire", id: "fire", d: dFire };
-      // поленницы — взять полено
-      for (const p of WOOD_PILES) {
-        if ((store.fire.piles[p.id] ?? 0) <= 0) continue;
-        const d = Math.hypot(POS.x - p.x, POS.z - p.z);
-        if (d < 2.1 && (!best || d < best.d)) best = { kind: "wood", id: p.id, d };
-      }
-      store.setNearest(best ? { kind: best.kind, id: best.id } : null);
     } else {
       store.setNearest(null);
     }

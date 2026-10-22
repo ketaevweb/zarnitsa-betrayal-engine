@@ -7,6 +7,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { labelSprite } from "@/lib/zarnitsa/sprites";
+import { BRUSHWOOD_SPOTS } from "@/lib/zarnitsa/day";
 
 function Marker({
   id,
@@ -74,6 +75,7 @@ export function Markers() {
   const state = useZarnitsa((s) => s.state);
   const night = useZarnitsa((s) => s.night);
   const doneToday = useZarnitsa((s) => s.doneToday);
+  const dayDone = useZarnitsa((s) => s.dayDone);
   const nearest = useZarnitsa((s) => s.nearest);
   const screen = useZarnitsa((s) => s.screen);
 
@@ -83,6 +85,26 @@ export function Markers() {
   );
 
   if (screen === "title" || screen === "end") return null;
+
+  // дневной обход (M1.1): вместо ночных маркеров — вязанки хвороста
+  if (screen === "camp") {
+    return (
+      <group>
+        {BRUSHWOOD_SPOTS.filter((b) => !dayDone.includes(b.id)).map((b) => (
+          <Marker
+            key={b.id}
+            id={b.id}
+            x={b.x}
+            z={b.z}
+            label="хворост"
+            accent="#c98a3a"
+            dim
+            active={nearest?.kind === "wood" && nearest.id === b.id}
+          />
+        ))}
+      </group>
+    );
+  }
 
   return (
     <group>
