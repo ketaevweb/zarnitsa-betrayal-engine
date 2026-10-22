@@ -13,10 +13,16 @@ import { COMPANIONS } from "@/lib/zarnitsa/data";
 export const keys = new Set<string>();
 
 const POS = new THREE.Vector3(0, 0, 7);
+let ANGLE = 0;
 
 /** текущая позиция игрока (для спутников) */
 export function playerPos(): THREE.Vector3 {
   return POS;
+}
+
+/** текущий угол поворота игрока (для мини-карты) */
+export function playerAngle(): number {
+  return ANGLE;
 }
 const CAM_TARGET = new THREE.Vector3();
 const LOOK = new THREE.Vector3();
@@ -97,6 +103,7 @@ export function Player() {
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
       group.current.rotation.y = cur + diff * Math.min(1, dt * 11);
+      ANGLE = group.current.rotation.y;
     }
 
     // камера: орбита на титуле, слежка в игре

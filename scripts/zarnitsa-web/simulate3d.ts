@@ -22,6 +22,7 @@ import {
   talkAvailable,
   type TalkAction,
 } from "../../src/lib/zarnitsa/scenario3d";
+import { AMBIENT_EVENTS } from "../../src/lib/zarnitsa/ambient3d";
 import type { Choice, GameState, TagId } from "../../src/lib/zarnitsa/types";
 
 /* ---------- утилиты ---------- */
@@ -116,12 +117,37 @@ function doTalks(state: GameState, night: number, mode: Mode, rng: () => number)
   return s;
 }
 
-function run(mode: Mode, seed = 1): GameState {
+function doAmbient(state: GameState, night: number, mode: Mode, rng: () => number): { state: GameState; visited: number } {
+  let s = state;
+  let visited = 0;
+  for (const ev of AMBIENT_EVENTS.filter((e) => e.night === night)) {
+    if (mode === "mixed" && rng() < 0.4) continue; // дорога необязательна
+    const phased = withPhase(s, ev.day, ev.phase);
+    const scores = ev.choices.map((ch) => scoreChoice(phased, ch));
+    let pick = 0;
+    if (mode === "cruel") pick = scores.indexOf(Math.min(...scores));
+    else if (mode === "kind") pick = scores.indexOf(Math.max(...scores));
+    else pick = Math.floor(rng() * ev.choices.length);
+    s = applyChoice(phased, ev.choices[pick]);
+    s = resolveSpeechQueue(s, mode, rng);
+    visited += 1;
+  }
+  return { state: s, visited };
+}
+
+function run(mode: Mode, seed = 1): { state: GameState; ambientVisited: number } {
   const rng = mulberry32(seed);
   let state = debugReset();
+  let ambientVisited = 0;
 
   for (let night = 1; night <= NIGHT_COUNT; night++) {
     state = doTalks(state, night, mode, rng);
+
+    // дорога — до ключевых событий: в игре её можно проходить когда угодно,
+    // но финал (Столп) закрывает ночь, поэтому симуляция ходит по ней раньше
+    const amb = doAmbient(state, night, mode, rng);
+    state = amb.state;
+    ambientVisited += amb.visited;
 
     const list = nightEvents(night);
     const ordered = [...list, ...SCENE_EVENTS.filter((e) => e.night === night && e.gated)];
@@ -138,7 +164,7 @@ function run(mode: Mode, seed = 1): GameState {
     }
     if (state.finished) break;
   }
-  return state;
+  return { state, ambientVisited };
 }
 
 /* ---------- проверки ---------- */
@@ -154,6 +180,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 function invariants(state: GameState, label: string) {
+  assert(state.gold >= 0, `${label}: золото не уходит в минус (${state.gold})`);
   for (const cs of Object.values(state.party)) {
     assert(cs.trust >= 0 && cs.trust <= 100, `${label}: доверие ${cs.id} в 0..100 (${cs.trust.toFixed(1)})`);
     assert(cs.level === levelFromTrust(cs.trust) || cs.level === 5 || cs.frozen,
@@ -182,16 +209,20 @@ console.log("=== ЗАРНИЦА 3D: баланс-симуляция (без пу
 
 /* --- 1. ЖЕСТОКИЙ прогон: цель — Ночь ножей --- */
 console.log("1) ЖЕСТОКИЙ: уколы за живое + худшие решения + ложь в Праве слова");
-const cruel = run("cruel");
+const cruelRun = run("cruel");
+const cruel = cruelRun.state;
 printParty(cruel);
 invariants(cruel, "жестокий");
+console.log(`    бытовых событий пройдено: ${cruelRun.ambientVisited} из ${AMBIENT_EVENTS.length}`);
+assert(cruelRun.ambientVisited === AMBIENT_EVENTS.length, "жестокий прогон проходит и дорогу (события дороги не ломают движок)");
 const betrayed = Object.values(cruel.party).filter((c) => c.betrayedAtFinale);
 assert(betrayed.length >= 1, "Ночь ножей достигнута БЕЗ пульта: есть Разрыв (V) в финале");
 assert(cruel.finished, "прогон дошёл до финала (Клятва у Столпа)");
 
 /* --- 2. ДОБРЫЙ прогон: цель — все верны --- */
-console.log("\n2) ДОБРЫЙ: поддержка + лучшие решения + исповедь в Праве слова");
-const kind = run("kind");
+console.log("\n2) ДОБРЫЙ: поддержка + лучшие решения + дорога целиком + исповедь");
+const kindRun = run("kind");
+const kind = kindRun.state;
 printParty(kind);
 invariants(kind, "добрый");
 assert(
@@ -200,12 +231,13 @@ assert(
 );
 const minTrust = Math.min(...Object.values(kind.party).map((c) => c.trust));
 assert(minTrust >= 55, `доверие не падало ниже 55 (минимум ${minTrust.toFixed(1)})`);
+assert(kindRun.ambientVisited === AMBIENT_EVENTS.length, "добрый прогон обошёл всю дорогу — рассвет не заблокирован бытовыми событиями");
 
 /* --- 3. СЛУЧАЙНЫЕ прогоны --- */
-console.log("\n3) РАЗБРОС: 4 случайных прогона (сид 11, 22, 33, 44)");
+console.log("\n3) РАЗБРОС: 4 случайных прогона (сид 11, 22, 33, 44) — дорога по настроению");
 let anyDoubt = false;
 for (const seed of [11, 22, 33, 44]) {
-  const s = run("mixed", seed);
+  const s = run("mixed", seed).state;
   invariants(s, `сид ${seed}`);
   const maxLevel = Math.max(...Object.values(s.party).map((c) => c.level));
   const minT = Math.min(...Object.values(s.party).map((c) => c.trust));

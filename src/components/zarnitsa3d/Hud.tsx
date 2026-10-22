@@ -2,14 +2,16 @@
 
 /* HUD 3D-версии: титул, шапка, мини-карточки, модалки, летопись, рассвет */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { COMPANIONS, LADDER, COMPANION_BY_ID } from "@/lib/zarnitsa/data";
 import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
 import { SCENE_EVENTS, TALK_ACTIONS, talkAvailable } from "@/lib/zarnitsa/scenario3d";
 import { nightTitle, useZarnitsa } from "@/lib/zarnitsa/store";
+import { ambienceStart, ambienceStop } from "@/lib/zarnitsa/ambience";
 import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
 import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
 import { EndScreen } from "@/components/zarnitsa/EndScreen";
+import { Minimap } from "./Minimap";
 
 const LOG_CLASS: Record<string, string> = {
   memory: "z-log-memory",
@@ -65,11 +67,36 @@ function MiniCard({ cid }: { cid: string }) {
 
 /* ---------------- шапка ---------------- */
 
+function SoundButton() {
+  const [on, setOn] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        if (on) {
+          ambienceStop();
+          setOn(false);
+        } else {
+          ambienceStart();
+          setOn(true);
+        }
+      }}
+      className={`rounded-sm border px-2 py-1 text-[11px] transition-colors ${
+        on
+          ? "border-[#c9a227] text-[#c9a227]"
+          : "border-[#32233a] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
+      }`}
+    >
+      {on ? "звук ✓" : "звук"}
+    </button>
+  );
+}
+
 function TopBar() {
   const night = useZarnitsa((s) => s.night);
   const gold = useZarnitsa((s) => s.state.gold);
   const setDrawer = useZarnitsa((s) => s.setDrawer);
   const togglePult = useZarnitsa((s) => s.togglePult);
+  const toggleMap = useZarnitsa((s) => s.toggleMap);
   const toTitle = useZarnitsa((s) => s.toTitle);
 
   return (
@@ -84,6 +111,13 @@ function TopBar() {
         <span className="text-[#c9a227]" title="Проклятое золото отряда">
           ⛃ {gold}
         </span>
+        <button
+          onClick={toggleMap}
+          className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
+        >
+          карта
+        </button>
+        <SoundButton />
         <button
           onClick={() => setDrawer("party")}
           className="rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
@@ -295,7 +329,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M0.5
+        3D-прототип · M0.6
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -305,8 +339,8 @@ function TitleScreen() {
       </h1>
       <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-[#9a8f96]">
         Три ночи под Мглой: ходи по поляне, находи события, говори с отрядом.
-        17 решений, 4 спутника, движок предательства — тот же, что в текстовом
-        прототипе и Godot-каркасе.
+        17 ключевых решений, 9 дорожных находок, 4 спутника, движок предательства —
+        тот же, что в текстовом прототипе и Godot-каркасе.
       </p>
       <div className="z-panel mt-6 grid max-w-xl gap-2 p-4 text-xs text-[#9a8f96] sm:grid-cols-2">
         <span>
@@ -316,7 +350,13 @@ function TitleScreen() {
           <b className="text-[#d6cfc2]">E</b> — действие (маркер, спутник)
         </span>
         <span>
-          <b className="text-[#d6cfc2]">Маркеры</b> — события ночи
+          <b className="text-[#d6cfc2]">M</b> — карта поляны
+        </span>
+        <span>
+          <b className="text-[#d6cfc2]">Золотые маркеры</b> — ключевые события
+        </span>
+        <span>
+          <b className="text-[#7a8aa0]">Серые маркеры</b> — дорога (не обязан)
         </span>
         <span>
           <b className="text-[#d6cfc2]">Разговоры</b> — поддержка или «уколоть»
@@ -450,7 +490,7 @@ function ControlsHint() {
   if (screen !== "play") return null;
   return (
     <div className="pointer-events-none absolute bottom-3 right-3 z-20 text-right text-[10px] leading-relaxed text-[#9a8f96]/85">
-      WASD — движение · E — действие
+      WASD — движение · E — действие · M — карта
       <br />
       отряд — верхняя панель
     </div>
@@ -488,6 +528,7 @@ export function Hud() {
       <Prompt />
       <LogTicker />
       <ControlsHint />
+      <Minimap />
       {screen === "title" && <TitleScreen />}
       {screen === "event" && <EventModal />}
       <TalkMenu />

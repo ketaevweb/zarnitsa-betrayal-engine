@@ -14,6 +14,7 @@ function Marker({
   z,
   label,
   accent,
+  dim,
   active,
 }: {
   id: string;
@@ -21,24 +22,26 @@ function Marker({
   z: number;
   label: string;
   accent: string;
+  /** бытовое событие: тише и ниже ключевых */
+  dim?: boolean;
   active: boolean;
 }) {
   const beam = useRef<THREE.Mesh>(null);
   const ring = useRef<THREE.Mesh>(null);
-  const sprite = useMemo(() => labelSprite(label, undefined, 0.95), [label]);
+  const sprite = useMemo(() => labelSprite(label, undefined, dim ? 0.78 : 0.95), [label, dim]);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     if (beam.current) {
       const mat = beam.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = (active ? 0.34 : 0.16) + Math.sin(t * 2.2 + x) * 0.05;
+      mat.opacity = ((active ? 0.34 : dim ? 0.09 : 0.16) + Math.sin(t * 2.2 + x) * 0.05) * (dim ? 0.7 : 1);
       const s = active ? 1.15 : 1;
-      beam.current.scale.set(s, 1, s);
+      beam.current.scale.set(s, dim ? 0.62 : 1, s);
     }
     if (ring.current) {
       ring.current.rotation.z = t * 0.5;
       const mat = ring.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = active ? 1.6 : 0.7;
+      mat.emissiveIntensity = (active ? 1.6 : dim ? 0.4 : 0.7) * (dim ? 0.75 : 1);
     }
   });
 
@@ -58,7 +61,7 @@ function Marker({
       </mesh>
       {/* кольцо на земле */}
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-        <torusGeometry args={[0.85, 0.05, 8, 36]} />
+        <torusGeometry args={[dim ? 0.68 : 0.85, 0.05, 8, 36]} />
         <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.8} roughness={0.5} />
       </mesh>
       {/* подпись */}
@@ -84,7 +87,13 @@ export function Markers() {
   return (
     <group>
       {list.map((ev) => {
-        const accent = ev.title.startsWith("⸸") ? "#d95f3b" : ev.gated ? "#e8d48a" : "#c9a227";
+        const accent = ev.ambient
+          ? "#7a8aa0"
+          : ev.title.startsWith("⸸")
+            ? "#d95f3b"
+            : ev.gated
+              ? "#e8d48a"
+              : "#c9a227";
         return (
           <Marker
             key={ev.id}
@@ -93,6 +102,7 @@ export function Markers() {
             z={ev.pos[1]}
             label={ev.marker}
             accent={accent}
+            dim={ev.ambient}
             active={nearest?.kind === "event" && nearest.id === ev.id}
           />
         );

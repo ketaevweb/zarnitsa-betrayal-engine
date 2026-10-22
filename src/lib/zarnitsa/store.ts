@@ -57,6 +57,8 @@ interface ZarnitsaStore {
   intro: string | null;
   ending: Ending | null;
   moves: number; // счётчик шагов — ключ для пересборки маркеров
+  /** мини-карта (M или кнопка «карта») */
+  mapOpen: boolean;
   /** режим экскурсии (?tour=1): игрок сам идёт к ближайшему маркеру */
   tour: boolean;
 
@@ -72,6 +74,7 @@ interface ZarnitsaStore {
   setNearest: (n: Nearest | null) => void;
   setDrawer: (d: "party" | null) => void;
   togglePult: () => void;
+  toggleMap: () => void;
   drain: (delta: number) => void;
   dawnGo: () => void;
 }
@@ -110,6 +113,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   intro: null,
   ending: null,
   moves: 0,
+  mapOpen: false,
   tour: false,
 
   start: () => {
@@ -130,7 +134,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     });
   },
 
-  toTitle: () => set({ screen: "title", ending: null, intro: null, drawer: null, pultOpen: false }),
+  toTitle: () => set({ screen: "title", ending: null, intro: null, drawer: null, pultOpen: false, mapOpen: false }),
 
   /** клавиша E: ближайший маркер или спутник */
   interact: () => {
@@ -218,6 +222,11 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
 
   setDrawer: (d) => set({ drawer: d }),
   togglePult: () => set({ pultOpen: !get().pultOpen }),
+
+  toggleMap: () => {
+    if (get().screen !== "play") return;
+    set({ mapOpen: !get().mapOpen });
+  },
 
   drain: (delta) => {
     const next = debugDrainAll(get().state, delta);

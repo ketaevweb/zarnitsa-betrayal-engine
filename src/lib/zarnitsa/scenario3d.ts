@@ -13,6 +13,7 @@
 import type { EventDef, MemoryEffect, TagId } from "./types";
 import { EVENTS } from "./scenario";
 import { COMPANION_BY_ID } from "./data";
+import { AMBIENT_EVENTS } from "./ambient3d";
 
 export interface SceneEvent extends EventDef {
   night: number;
@@ -22,6 +23,8 @@ export interface SceneEvent extends EventDef {
   marker: string;
   /** открывается только после остальных событий ночи */
   gated?: boolean;
+  /** бытовое событие дороги: необязательное, рассвет его не ждёт */
+  ambient?: boolean;
 }
 
 /** привязка событий к ночам и точкам местности */
@@ -255,12 +258,15 @@ const NEW_EVENTS: EventDef[] = [
   },
 ];
 
-/** все события 3D-сценария, привязанные к ночам и точкам */
-export const SCENE_EVENTS: SceneEvent[] = [...EVENTS, ...NEW_EVENTS].map((ev) => {
-  const lay = LAYOUT[ev.id];
-  if (!lay) throw new Error(`нет привязки к местности для ${ev.id}`);
-  return { ...ev, night: lay.night, pos: lay.pos, marker: lay.marker, gated: lay.gated };
-});
+/** все события 3D-сценария, привязанные к ночам и точкам (17 ключевых + 9 дорожных) */
+export const SCENE_EVENTS: SceneEvent[] = [
+  ...[...EVENTS, ...NEW_EVENTS].map((ev) => {
+    const lay = LAYOUT[ev.id];
+    if (!lay) throw new Error(`нет привязки к местности для ${ev.id}`);
+    return { ...ev, night: lay.night, pos: lay.pos, marker: lay.marker, gated: lay.gated };
+  }),
+  ...AMBIENT_EVENTS,
+];
 
 export const NIGHT_COUNT = 3;
 export const NIGHT_TITLES: Record<number, string> = {
@@ -269,9 +275,9 @@ export const NIGHT_TITLES: Record<number, string> = {
   3: "Ночь III — Развилка",
 };
 
-/** события ночи, которые нужно пройти до рассвета (без гейтов) */
+/** события ночи, которые нужно пройти до рассвета (без гейтов, без бытовых) */
 export function nightEvents(night: number): SceneEvent[] {
-  return SCENE_EVENTS.filter((e) => e.night === night && !e.gated);
+  return SCENE_EVENTS.filter((e) => e.night === night && !e.gated && !e.ambient);
 }
 
 /** точки лагеря спутников (вокруг костра) */
