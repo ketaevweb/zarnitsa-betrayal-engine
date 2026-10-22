@@ -2,12 +2,12 @@
 
 /* HUD 3D-версии: титул, шапка, мини-карточки, модалки, летопись, рассвет */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { COMPANIONS, LADDER, COMPANION_BY_ID } from "@/lib/zarnitsa/data";
 import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
-import { SCENE_EVENTS, TALK_ACTIONS, talkAvailable } from "@/lib/zarnitsa/scenario3d";
-import { nightTitle, useZarnitsa } from "@/lib/zarnitsa/store";
-import { ambienceStart, ambienceStop } from "@/lib/zarnitsa/ambience";
+import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
+import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
+import { audioEnabled, audioToggle, setHeartbeat, sfxBell, sfxDawn, sfxOpen } from "@/lib/zarnitsa/audio";
 import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
 import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
 import { EndScreen } from "@/components/zarnitsa/EndScreen";
@@ -69,25 +69,38 @@ function MiniCard({ cid }: { cid: string }) {
 
 function SoundButton() {
   const [on, setOn] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setOn(audioEnabled()), 0);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <button
-      onClick={() => {
-        if (on) {
-          ambienceStop();
-          setOn(false);
-        } else {
-          ambienceStart();
-          setOn(true);
-        }
-      }}
+      onClick={() => setOn(audioToggle())}
       className={`rounded-sm border px-2 py-1 text-[11px] transition-colors ${
         on
           ? "border-[#c9a227] text-[#c9a227]"
           : "border-[#32233a] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2]"
       }`}
     >
-      {on ? "звук ✓" : "звук"}
+      {on ? "звук ✓" : "звук ✕"}
     </button>
+  );
+}
+
+/* счётчик событий текущей ночи */
+
+function NightChip() {
+  const night = useZarnitsa((s) => s.night);
+  const doneToday = useZarnitsa((s) => s.doneToday);
+  const list = nightEvents(night);
+  const k = list.filter((e) => doneToday.includes(e.id)).length;
+  return (
+    <span
+      className="hidden rounded-sm border border-[#32233a] bg-black/30 px-2 py-0.5 text-[11px] tabular-nums text-[#9a8f96] md:inline"
+      title="Сколько событий ночи пройдено — золотые и серые маркеры на поляне"
+    >
+      события ночи <b className="text-[#d6cfc2]">{k}</b>/{list.length}
+    </span>
   );
 }
 
@@ -107,6 +120,7 @@ function TopBar() {
       <span className="hidden text-[11px] uppercase tracking-[0.25em] text-[#c9a227] sm:inline">
         {nightTitle(night)}
       </span>
+      <NightChip />
       <span className="ml-auto flex items-center gap-2 text-xs">
         <span className="text-[#c9a227]" title="Проклятое золото отряда">
           ⛃ {gold}
@@ -149,14 +163,56 @@ function TopBar() {
 
 /* ---------------- модалка события / разговора ---------------- */
 
+/** печатающийся текст: ~0.9 с на полный текст, клик — показать сразу.
+ *  Компонент монтируется с key={event.id} — сброс состояния бесплатен. */
+function useTypedText(text: string[]) {
+  const full = useMemo(() => text.join(""), [text]);
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (!full) return;
+    const step = Math.max(4, Math.round(full.length / 55));
+    const iv = setInterval(() => {
+      setShown((s) => Math.min(full.length, s + step));
+    }, 16);
+    return () => clearInterval(iv);
+  }, [full]);
+  return { full, shown, done: shown >= full.length, complete: () => setShown(full.length) };
+}
+
 function EventModal() {
   const ev = useZarnitsa((s) => s.activeEvent);
   const choose = useZarnitsa((s) => s.choose);
+  const typed = useTypedText(ev?.text ?? [""]);
+
+  useEffect(() => {
+    // разговоры открываются мягче, чем ключевые события (у тех — «удар» в openEvent)
+    if (ev?.id.startsWith("talk_")) sfxOpen();
+  }, [ev]);
+
   if (!ev) return null;
   const isTalk = ev.id.startsWith("talk_");
+
+  // распределение напечатанных символов по абзацам (без мутаций и без хуков)
+  const starts: number[] = [];
+  let sum = 0;
+  for (const p of ev.text) {
+    starts.push(sum);
+    sum += p.length;
+  }
+  const parts = ev.text.map((p, i) => {
+    const start = starts[i];
+    const take = typed.shown > start ? Math.min(p.length, typed.shown - start) : 0;
+    return { p, take };
+  });
+  const typingIdx = parts.findIndex((x) => x.take < x.p.length);
+
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/55 p-4">
-      <section className="z-panel z-fadein max-h-[86vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-7" aria-label={ev.title}>
+      <section
+        className="z-panel z-fadein max-h-[86vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-7"
+        aria-label={ev.title}
+        onClick={typed.complete}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-sm border border-[#32233a] px-2 py-0.5 text-[11px] text-[#9a8f96]">
             {isTalk ? "разговор у костра" : `Ночь ${ev.day} · ${ev.phase}`}
@@ -176,15 +232,30 @@ function EventModal() {
           {ev.title.replace("⸸ ", "")}
         </h2>
         <div className="mt-3 space-y-2.5">
-          {ev.text.map((p, i) => (
+          {parts.map(({ p, take }, i) => (
             <p key={i} className="text-sm leading-relaxed text-[#d6cfc2] sm:text-[15px]">
-              {p}
+              {p.slice(0, take)}
+              {i === typingIdx && (
+                <span className="text-[#c9a227]">▍</span>
+              )}
             </p>
           ))}
         </div>
+        {!typed.done && (
+          <p className="mt-1.5 text-right text-[10px] uppercase tracking-[0.2em] text-[#9a8f96]/70">
+            клик — дальше
+          </p>
+        )}
         <div className="mt-5 space-y-2">
           {ev.choices.map((c, i) => (
-            <button key={c.id} onClick={() => choose(i)} className="z-choice">
+            <button
+              key={c.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                choose(i);
+              }}
+              className="z-choice"
+            >
               <span className="block text-sm font-medium sm:text-[15px]">{c.label}</span>
               {c.note && (
                 <span className="mt-0.5 block text-xs italic text-[#9a8f96]">{c.note}</span>
@@ -326,10 +397,17 @@ function Pult() {
 
 function TitleScreen() {
   const start = useZarnitsa((s) => s.start);
+  const resumeRun = useZarnitsa((s) => s.resumeRun);
+  const hasSave = useZarnitsa((s) => s.hasSave);
+  const refreshHasSave = useZarnitsa((s) => s.refreshHasSave);
+  useEffect(() => {
+    refreshHasSave();
+  }, [refreshHasSave]);
+  const saved = savedNight();
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M0.6
+        3D-прототип · M0.7 «Живая ночь»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -341,6 +419,7 @@ function TitleScreen() {
         Три ночи под Мглой: ходи по поляне, находи события, говори с отрядом.
         17 ключевых решений, 9 дорожных находок, 4 спутника, движок предательства —
         тот же, что в текстовом прототипе и Godot-каркасе.
+        Теперь с звуком, всплывающим доверием и автосохранением прогона.
       </p>
       <div className="z-panel mt-6 grid max-w-xl gap-2 p-4 text-xs text-[#9a8f96] sm:grid-cols-2">
         <span>
@@ -362,9 +441,17 @@ function TitleScreen() {
           <b className="text-[#d6cfc2]">Разговоры</b> — поддержка или «уколоть»
         </span>
       </div>
+      {hasSave && (
+        <button
+          onClick={resumeRun}
+          className="mt-7 rounded-sm border border-[#32233a] bg-black/35 px-8 py-3 text-base text-[#d6cfc2] transition-all hover:border-[#c9a227] hover:text-[#c9a227]"
+        >
+          ⟲ Продолжить поход{saved ? ` · Ночь ${saved}` : ""}
+        </button>
+      )}
       <button
         onClick={start}
-        className="mt-7 rounded-sm border border-[#c9a227] bg-[#7b2d35]/25 px-10 py-4 text-lg font-semibold tracking-wide text-[#c9a227] transition-all hover:bg-[#7b2d35]/45 hover:shadow-[0_0_24px_rgba(201,162,39,0.25)]"
+        className="mt-4 rounded-sm border border-[#c9a227] bg-[#7b2d35]/25 px-10 py-4 text-lg font-semibold tracking-wide text-[#c9a227] transition-all hover:bg-[#7b2d35]/45 hover:shadow-[0_0_24px_rgba(201,162,39,0.25)]"
       >
         ⚔ Выйти в ночь
       </button>
@@ -384,6 +471,7 @@ function IntroOverlay() {
   const intro = useZarnitsa((s) => s.intro);
   useEffect(() => {
     if (!intro) return;
+    sfxBell();
     const t = setTimeout(() => useZarnitsa.setState({ intro: null }), 2600);
     return () => clearTimeout(t);
   }, [intro]);
@@ -405,6 +493,10 @@ function IntroOverlay() {
 function DawnOverlay() {
   const night = useZarnitsa((s) => s.night);
   const dawnGo = useZarnitsa((s) => s.dawnGo);
+  const summary = useZarnitsa((s) => s.nightSummary);
+  useEffect(() => {
+    sfxDawn();
+  }, []);
   const next = Math.min(night + 1, 3);
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-[#0d0a10]/78 p-4 backdrop-blur-sm">
@@ -419,6 +511,28 @@ function DawnOverlay() {
           Мгла отступает до сумерек — но записи в памяти отряда не тускнеют.
           Впереди: {nightTitle(next)}.
         </p>
+        {summary && summary.length > 0 && (
+          <div className="z-panel mt-4 p-3 text-left">
+            <p className="mb-1.5 text-[10px] uppercase tracking-[0.25em] text-[#9a8f96]">
+              За эту ночь память изменилась
+            </p>
+            <ul className="space-y-1">
+              {summary.map((r) => (
+                <li key={r.cid} className="flex items-center gap-2 text-sm">
+                  <span className="text-[#c9a227]">{COMPANION_BY_ID[r.cid]?.glyph}</span>
+                  <span className="text-[#d6cfc2]">{COMPANION_BY_ID[r.cid]?.name ?? r.cid}</span>
+                  <span
+                    className={`ml-auto font-semibold tabular-nums ${
+                      r.delta > 0 ? "text-[#8fbc8d]" : "text-[#e08a8a]"
+                    }`}
+                  >
+                    Δ {fmtDelta(r.delta)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <button
           onClick={dawnGo}
           className="mt-5 rounded-sm border border-[#c9a227] bg-[#7b2d35]/25 px-8 py-3 font-semibold text-[#c9a227] transition-all hover:bg-[#7b2d35]/45"
@@ -497,6 +611,52 @@ function ControlsHint() {
   );
 }
 
+/* ---------------- виньетка напряжения (M0.7) ---------------- */
+
+function Vignette() {
+  const party = useZarnitsa((s) => s.state.party);
+  const screen = useZarnitsa((s) => s.screen);
+
+  let maxLevel = 0;
+  let frozen = 0;
+  for (const cs of Object.values(party)) {
+    if (cs.gone) continue;
+    if (cs.level > maxLevel) maxLevel = cs.level;
+    if (cs.frozen) frozen++;
+  }
+  const intensity = Math.min(1, (maxLevel + frozen * 0.5) / 5.5);
+  const hot = maxLevel >= 4 || frozen > 0;
+  const level = Math.round(intensity * 10) / 10;
+
+  useEffect(() => {
+    setHeartbeat(hot && screen === "play" ? 0.3 + level * 0.6 : 0);
+    return () => setHeartbeat(0);
+  }, [hot, screen, level]);
+
+  if (screen === "title" || screen === "end" || intensity < 0.02) return null;
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute inset-0 z-[15]"
+        style={{
+          background: `radial-gradient(ellipse at center, transparent 40%, rgba(90,16,32,${(
+            0.55 * intensity
+          ).toFixed(3)}) 100%)`,
+        }}
+      />
+      {hot && screen === "play" && (
+        <div
+          className="z-heartbeat pointer-events-none absolute inset-0 z-[15]"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, transparent 52%, rgba(140,31,40,0.42) 100%)",
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 /* ---------------- корневой HUD ---------------- */
 
 export function Hud() {
@@ -505,6 +665,7 @@ export function Hud() {
   const ending = useZarnitsa((s) => s.ending);
   const chooseSpeech = useZarnitsa((s) => s.chooseSpeech);
   const toTitle = useZarnitsa((s) => s.toTitle);
+  const activeEventId = useZarnitsa((s) => s.activeEvent?.id);
 
   if (screen === "end" && ending) {
     return (
@@ -529,8 +690,9 @@ export function Hud() {
       <LogTicker />
       <ControlsHint />
       <Minimap />
+      <Vignette />
       {screen === "title" && <TitleScreen />}
-      {screen === "event" && <EventModal />}
+      {screen === "event" && activeEventId && <EventModal key={activeEventId} />}
       <TalkMenu />
       {screen === "speech" && state.speechTarget && (
         <SpeechDialog state={state} companionId={state.speechTarget} onResolve={(o: SpeechOption) => chooseSpeech(o)} />

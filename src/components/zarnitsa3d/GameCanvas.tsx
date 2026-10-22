@@ -11,6 +11,7 @@ import { Player, keys, playerPos } from "./Player";
 import { Companions } from "./Companions";
 import { Markers } from "./Markers";
 import { Snow } from "./Particles";
+import { Floaters } from "./Floaters";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, SCENE_EVENTS } from "@/lib/zarnitsa/scenario3d";
 
@@ -95,6 +96,7 @@ export default function GameCanvas() {
       <Player />
       <Companions />
       <Markers />
+      <Floaters />
       <Snow />
       <FogNight />
     </Canvas>

@@ -1,5 +1,7 @@
 /* ============================================================
  * ЗАРНИЦА: КЛЯТВА 3D — zustand-стор: мост движка ↔ сцена ↔ HUD
+ * M0.7 «Живая ночь»: всплывающие Δ, тряска камеры, автосохранение,
+ * итоги ночи на рассвете, звуковые хуки
  * ============================================================ */
 
 import { create } from "zustand";
@@ -21,6 +23,15 @@ import {
   talkAvailable,
 } from "./scenario3d";
 import type { EventDef, GameState } from "./types";
+import {
+  audioStart,
+  sfxClick,
+  sfxDeltaDown,
+  sfxDeltaUp,
+  sfxEnding,
+  sfxNeedle,
+  sfxReveal,
+} from "./audio";
 
 export type Screen = "title" | "play" | "event" | "speech" | "dawn" | "end";
 
@@ -31,6 +42,19 @@ export interface Nearest {
 
 export type Ending = ReturnType<typeof buildEnding>;
 
+/** всплывающее число доверия над спутником */
+export interface Floater {
+  id: number;
+  cid: string;
+  delta: number;
+}
+
+/** итог прошедшей ночи для экрана рассвета */
+export interface NightSummaryRow {
+  cid: string;
+  delta: number;
+}
+
 /** цвет ступени на лестнице предательства (3D + HUD) */
 export const LEVEL_COLOR: Record<number, string> = {
   0: "#7da87b",
@@ -40,6 +64,78 @@ export const LEVEL_COLOR: Record<number, string> = {
   4: "#8c1f28",
   5: "#5a1020",
 };
+
+/* ---------------- автосохранение ---------------- */
+
+const SAVE_KEY = "zarnitsa3d_save_v1";
+
+interface SaveShape {
+  state: GameState;
+  night: number;
+  doneToday: string[];
+  nightStart: Record<string, number>;
+  at: number;
+}
+
+function persist(s: GameState, night: number, doneToday: string[], nightStart: Record<string, number>) {
+  try {
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({ state: s, night, doneToday, nightStart, at: Date.now() } satisfies SaveShape),
+    );
+  } catch {
+    /* приватный режим — играем без сохранения */
+  }
+}
+
+function readSave(): SaveShape | null {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as SaveShape;
+    if (
+      p?.state?.party &&
+      typeof p.night === "number" &&
+      p.night >= 1 &&
+      p.night <= NIGHT_COUNT &&
+      Array.isArray(p.doneToday) &&
+      !p.state.finished
+    ) {
+      return p;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSave() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {
+    /* пусто */
+  }
+}
+
+/* ---------------- утилиты доверия ---------------- */
+
+function snapshotTrust(state: GameState): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [cid, cs] of Object.entries(state.party)) out[cid] = cs.trust;
+  return out;
+}
+
+function trustDiff(before: Record<string, number>, after: GameState): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [cid, cs] of Object.entries(after.party)) {
+    if (cs.gone) continue;
+    const d = cs.trust - (before[cid] ?? cs.trust);
+    if (Math.abs(d) > 0.001) out[cid] = d;
+  }
+  return out;
+}
+
+let floaterSeq = 1;
 
 interface ZarnitsaStore {
   screen: Screen;
@@ -61,9 +157,21 @@ interface ZarnitsaStore {
   mapOpen: boolean;
   /** режим экскурсии (?tour=1): игрок сам идёт к ближайшему маркеру */
   tour: boolean;
+  /** всплывающие Δ доверия (M0.7) */
+  floaters: Floater[];
+  /** performance.now() последнего «укола» — тряска камеры */
+  shakeAt: number;
+  /** доверие отряда на старте ночи — для итогов рассвета */
+  nightStart: Record<string, number>;
+  /** итог прошедшей ночи (экран рассвета) */
+  nightSummary: NightSummaryRow[] | null;
+  /** есть сохранённый прогон (кнопка «Продолжить») */
+  hasSave: boolean;
 
   start: () => void;
   toTitle: () => void;
+  resumeRun: () => void;
+  refreshHasSave: () => void;
   interact: () => void;
   openEvent: (id: string) => void;
   openCompanion: (cid: string) => void;
@@ -77,6 +185,7 @@ interface ZarnitsaStore {
   toggleMap: () => void;
   drain: (delta: number) => void;
   dawnGo: () => void;
+  pushFloaters: (diff: Record<string, number>) => void;
 }
 
 function endingOf(state: GameState): Ending {
@@ -115,11 +224,19 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   moves: 0,
   mapOpen: false,
   tour: false,
+  floaters: [],
+  shakeAt: 0,
+  nightStart: snapshotTrust(debugReset()),
+  nightSummary: null,
+  hasSave: false,
 
   start: () => {
+    audioStart();
+    const fresh = debugReset();
+    const nightStart = snapshotTrust(fresh);
     set({
       screen: "play",
-      state: debugReset(),
+      state: fresh,
       night: 1,
       doneToday: [],
       activeEvent: null,
@@ -130,11 +247,43 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       pultOpen: false,
       ending: null,
       intro: NIGHT_TITLES[1],
+      nightSummary: null,
+      nightStart,
       moves: get().moves + 1,
+    });
+    persist(fresh, 1, [], nightStart);
+    set({ hasSave: true });
+  },
+
+  toTitle: () =>
+    set({ screen: "title", ending: null, intro: null, drawer: null, pultOpen: false, mapOpen: false, talkMenu: null }),
+
+  /** продолжить сохранённый прогон */
+  resumeRun: () => {
+    const save = readSave();
+    if (!save) return;
+    audioStart();
+    set({
+      screen: save.state.speechTarget ? "speech" : "play",
+      state: save.state,
+      night: save.night,
+      doneToday: save.doneToday,
+      nightStart: save.nightStart ?? snapshotTrust(save.state),
+      activeEvent: null,
+      pendingDoneId: null,
+      talkMenu: null,
+      nearest: null,
+      drawer: null,
+      pultOpen: false,
+      ending: null,
+      intro: NIGHT_TITLES[save.night],
+      nightSummary: null,
+      moves: get().moves + 1,
+      hasSave: true,
     });
   },
 
-  toTitle: () => set({ screen: "title", ending: null, intro: null, drawer: null, pultOpen: false, mapOpen: false }),
+  refreshHasSave: () => set({ hasSave: !!readSave() }),
 
   /** клавиша E: ближайший маркер или спутник */
   interact: () => {
@@ -147,6 +296,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   openEvent: (id) => {
     const ev = SCENE_EVENTS.find((e) => e.id === id);
     if (!ev) return;
+    sfxReveal();
     set({ screen: "event", activeEvent: ev });
   },
 
@@ -165,12 +315,29 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     if (!activeEvent) return;
     const choice = activeEvent.choices[Math.min(choiceIndex, activeEvent.choices.length - 1)];
     const isTalk = activeEvent.id.startsWith("talk_");
+    const isNeedle = activeEvent.id.includes("_needle_");
+
+    // звук: укол — диссонанс + тряска, обычный выбор — клик
+    if (isNeedle) {
+      sfxNeedle();
+      set({ shakeAt: performance.now() });
+    } else {
+      sfxClick();
+    }
+
+    const before = snapshotTrust(state);
     const phased = withPhase(state, activeEvent.day, activeEvent.phase);
     const next = applyChoice(phased, choice);
+    const diff = trustDiff(before, next);
+    get().pushFloaters(diff);
+    if (Object.values(diff).some((d) => d > 0)) sfxDeltaUp();
+    if (Object.values(diff).some((d) => d < 0)) sfxDeltaDown();
 
     const done = isTalk ? doneToday : [...doneToday, activeEvent.id];
 
     if (next.finished) {
+      clearSave();
+      sfxEnding();
       set({
         state: next,
         screen: "end",
@@ -178,6 +345,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
         ending: endingOf(next),
         talkMenu: null,
         intro: null,
+        hasSave: false,
       });
       return;
     }
@@ -193,16 +361,24 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       return;
     }
     set({ state: next, screen: "play", activeEvent: null, doneToday: done, talkMenu: null });
+    persist(next, get().night, done, get().nightStart);
     getAndApplyDawn(set, get, next, done);
   },
 
   chooseSpeech: (option) => {
     const { state, pendingDoneId, doneToday } = get();
     if (!state.speechTarget) return;
+    const before = snapshotTrust(state);
     const next = resolveSpeech(state, state.speechTarget, option);
+    const diff = trustDiff(before, next);
+    get().pushFloaters(diff);
+    if (Object.values(diff).some((d) => d > 0)) sfxDeltaUp();
+    if (Object.values(diff).some((d) => d < 0)) sfxDeltaDown();
 
     if (next.finished) {
-      set({ state: next, screen: "end", ending: endingOf(next), pendingDoneId: null, intro: null });
+      clearSave();
+      sfxEnding();
+      set({ state: next, screen: "end", ending: endingOf(next), pendingDoneId: null, intro: null, hasSave: false });
       return;
     }
     if (next.speechTarget) {
@@ -211,6 +387,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     }
     const done = pendingDoneId ? [...doneToday, pendingDoneId] : doneToday;
     set({ state: next, screen: "play", pendingDoneId: null, doneToday: done });
+    persist(next, get().night, done, get().nightStart);
     getAndApplyDawn(set, get, next, done);
   },
 
@@ -229,17 +406,27 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   },
 
   drain: (delta) => {
+    const before = snapshotTrust(get().state);
     const next = debugDrainAll(get().state, delta);
+    const diff = trustDiff(before, next);
+    get().pushFloaters(diff);
+    if (Object.values(diff).some((d) => d < 0)) sfxDeltaDown();
+    if (Object.values(diff).some((d) => d > 0)) sfxDeltaUp();
     if (next.speechTarget) {
       set({ state: next, screen: "speech", talkMenu: null, activeEvent: null });
     } else {
       set({ state: next });
     }
+    if (next.finished) {
+      clearSave();
+      set({ screen: "end", ending: endingOf(next), hasSave: false });
+    }
   },
 
   dawnGo: () => {
-    const { night } = get();
+    const { night, state } = get();
     const nextNight = Math.min(night + 1, NIGHT_COUNT);
+    const nightStart = snapshotTrust(state);
     set({
       screen: "play",
       night: nextNight,
@@ -248,8 +435,25 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       pendingDoneId: null,
       nearest: null,
       intro: NIGHT_TITLES[nextNight],
+      nightSummary: null,
+      nightStart,
       moves: get().moves + 1,
     });
+    persist(state, nextNight, [], nightStart);
+  },
+
+  pushFloaters: (diff) => {
+    const items: Floater[] = Object.entries(diff).map(([cid, delta]) => ({
+      id: floaterSeq++,
+      cid,
+      delta,
+    }));
+    if (!items.length) return;
+    set({ floaters: [...get().floaters, ...items] });
+    const ids = new Set(items.map((i) => i.id));
+    setTimeout(() => {
+      set({ floaters: get().floaters.filter((f) => !ids.has(f.id)) });
+    }, 2100);
   },
 }));
 
@@ -265,11 +469,25 @@ function getAndApplyDawn(
   const list = nightEvents(night);
   const allDone = list.every((e) => doneToday.includes(e.id));
   if (allDone) {
-    if (night < NIGHT_COUNT) set({ screen: "dawn" });
+    if (night < NIGHT_COUNT) {
+      // итог ночи: изменение доверия каждого спутника
+      const before = get().nightStart;
+      const summary: NightSummaryRow[] = Object.entries(next.party)
+        .map(([cid, cs]) => ({ cid, delta: cs.trust - (before[cid] ?? cs.trust) }))
+        .filter((r) => Math.abs(r.delta) > 0.001)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+      set({ screen: "dawn", nightSummary: summary });
+    }
     // на ночи III последним всегда остаётся гейт-Столп: finished придёт через него
   }
 }
 
 export function nightTitle(night: number): string {
   return NIGHT_TITLES[night] ?? "";
+}
+
+/** ночь сохранённого прогона (для титула) или null */
+export function savedNight(): number | null {
+  const s = readSave();
+  return s ? s.night : null;
 }

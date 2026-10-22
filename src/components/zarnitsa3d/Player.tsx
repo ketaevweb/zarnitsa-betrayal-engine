@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { COMPANIONS } from "@/lib/zarnitsa/data";
+import { sfxStep } from "@/lib/zarnitsa/audio";
 
 /** глобальное состояние клавиш (обновляется в GameCanvas) */
 export const keys = new Set<string>();
@@ -39,6 +40,7 @@ const OBSTACLES: { x: number; z: number; r: number }[] = [
 export function Player() {
   const group = useRef<THREE.Group>(null);
   const targetAngle = useRef(0);
+  const stepAccum = useRef(0.22);
 
   useFrame(({ camera }, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
@@ -60,6 +62,14 @@ export function Player() {
       POS.x += dx * 8.2 * dt;
       POS.z += dz * 8.2 * dt;
       targetAngle.current = Math.atan2(dx, dz);
+      // шаги по снегу — раз в ~0.34 с ходьбы
+      stepAccum.current += dt;
+      if (stepAccum.current > 0.34) {
+        stepAccum.current = 0;
+        sfxStep();
+      }
+    } else {
+      stepAccum.current = Math.min(stepAccum.current, 0.2);
     }
 
     // режим экскурсии: авто-ход к ближайшему доступному маркеру
@@ -117,6 +127,15 @@ export function Player() {
       camera.position.lerp(CAM_TARGET, 1 - Math.exp(-dt * 3.2));
       LOOK.set(POS.x, 0.6, POS.z - 2);
       camera.lookAt(LOOK);
+
+      // тряска камеры после «укола за живое» (M0.7)
+      const shakeAge = performance.now() - store.shakeAt;
+      if (shakeAge >= 0 && shakeAge < 450) {
+        const k = (1 - shakeAge / 450) * 0.26;
+        camera.position.x += (Math.random() - 0.5) * k;
+        camera.position.y += (Math.random() - 0.5) * k * 0.6;
+        camera.position.z += (Math.random() - 0.5) * k;
+      }
     }
 
     // ближайшее взаимодействие

@@ -206,6 +206,17 @@
   animation: z-fadein 0.35s ease-out both;
 }
 
+/* пульс красной виньетки на глубокой ступени предательства (M0.7) */
+@keyframes z-heartbeat {
+  0%, 100% { opacity: 0.5; }
+  22% { opacity: 1; }
+  38% { opacity: 0.65; }
+  55% { opacity: 0.9; }
+}
+.z-heartbeat {
+  animation: z-heartbeat 1.15s ease-in-out infinite;
+}
+
 .z-log-memory { border-left: 3px solid var(--z-border); }
 .z-log-level { border-left: 3px solid var(--z-wine); }
 .z-log-speech { border-left: 3px solid var(--z-gold); }

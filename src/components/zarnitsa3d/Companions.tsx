@@ -35,11 +35,15 @@ function Figure({ cid }: { cid: string }) {
     const t = clock.getElapsedTime();
     g.position.y = Math.sin(t * 1.6 + spot[0] * 3) * 0.035;
 
-    // поворот: к игроку, когда близко; иначе — к костру
+    // поворот: к игроку, когда близко; при ступени IV+ — спиной к игроку;
+    // иначе — к костру
     const pp = playerPos();
     const near = Math.hypot(pp.x - spot[0], pp.z - spot[1]) < 6;
+    const hostile = level >= 4;
     const want = near
-      ? Math.atan2(pp.x - spot[0], pp.z - spot[1])
+      ? hostile
+        ? Math.atan2(spot[0] - pp.x, spot[1] - pp.z) // отвернулся
+        : Math.atan2(pp.x - spot[0], pp.z - spot[1])
       : Math.atan2(-spot[0], -spot[1]);
     const cur = g.rotation.y;
     let diff = want - cur;
