@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { Sparks } from "./Particles";
 import { CAMP_SPOTS, PILLAR_POS, SCENE_EVENTS } from "@/lib/zarnitsa/scenario3d";
 import { WOOD_PILES, WATCHER_ANGLES, dreadLevel, watcherTargetR } from "@/lib/zarnitsa/camp3d";
+import { Crow } from "./Crow";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
 
 /* детерминированный рандом — лес одинаков между перезагрузками */
@@ -518,6 +519,7 @@ export function World() {
       <Pillar />
       <Forest />
       <Scatter />
+      <Crow />
     </group>
   );
 }

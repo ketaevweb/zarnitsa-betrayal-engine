@@ -8,7 +8,7 @@
  *  - вязанка хвороста (+8 топлива к завтрашнему костру, до +24).
  * ============================================================ */
 
-import type { EventDef, MemoryEffect, TagId } from "./types";
+import type { EchoEntry, EventDef, MemoryEffect, TagId } from "./types";
 import { COMPANION_BY_ID } from "./data";
 
 /** заголовки дней (день после ночи N = N+1) */
@@ -116,18 +116,46 @@ const DAY_TALKS: Record<string, DayTalk> = {
   },
 };
 
-/** утренний разговор со спутником — событие на лету (фаза «Утро») */
-export function makeDayTalk(cid: string, night: number): EventDef | null {
+/** эхо в утреннем разговоре (M1.3): первая фраза сцены помнит ночь шёпотов */
+const ECHO_TALK_OPENING: Record<string, { scorned: string; spared: string }> = {
+  gavrila: {
+    scorned:
+      "Увидев тебя, Гаврила осекается на полуслове: этой ночью ты говорил отряду о его страхе.",
+    spared: "Гаврила кивает тебе чуть смелее, чем раньше, — сам не зная почему.",
+  },
+  khodata: {
+    scorned:
+      "Ходата отвечает коротко и не смотрит в глаза: ночью ты сказал отряду, что его клятва пуста.",
+    spared: "Ходата первым поднимает руку в привете — редкость, и он сам это замечает.",
+  },
+  miluta: {
+    scorned:
+      "Милута придвигает летопись дорог подальше: ночью ты наводил отряд проверять её мешки.",
+    spared: "Милута ворчит чуть мягче обычного — будто беда её миновала, хоть она и не знает какая.",
+  },
+  ratmir: {
+    scorned:
+      "Ратмир не зовёт тебя к точильному камню: этой ночью тьма кричала твоим голосом, и он это узнал.",
+    spared: "Ратмир сдвигается, освобождая место у камня, — молча, как для своего.",
+  },
+};
+
+/** утренний разговор со спутником — событие на лету (фаза «Утро»);
+ *  echo (M1.3) — шёпоты прошлой ночи: первая фраза сцены их помнит */
+export function makeDayTalk(cid: string, night: number, echo?: EchoEntry[]): EventDef | null {
   const def = COMPANION_BY_ID[cid];
   const talk = DAY_TALKS[cid];
   if (!def || !talk) return null;
   const day = night + 1;
+  const hit = echo?.find((e) => e.cid === cid);
+  const opening =
+    hit && ECHO_TALK_OPENING[cid] ? ECHO_TALK_OPENING[cid][hit.spared ? "spared" : "scorned"] : null;
   return {
     id: `dtalk_${cid}_d${day}`,
     day,
     phase: "Утро",
     title: `${def.name}: утренний обход`,
-    text: talk.text,
+    text: opening ? [opening, ...talk.text] : talk.text,
     choices: [
       {
         id: "warm",

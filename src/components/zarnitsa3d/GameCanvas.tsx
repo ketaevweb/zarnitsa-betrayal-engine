@@ -10,6 +10,7 @@ import { World } from "./World";
 import { Player, keys, playerPos } from "./Player";
 import { Companions } from "./Companions";
 import { companionLive } from "./campLife";
+import { crowLive } from "./Crow";
 import { Markers } from "./Markers";
 import { Snow } from "./Particles";
 import { Floaters } from "./Floaters";
@@ -104,6 +105,7 @@ export default function GameCanvas() {
       store: useZarnitsa,
       events: SCENE_EVENTS,
       companions: companionLive,
+      crow: crowLive,
     };
 
     const down = (e: KeyboardEvent) => {

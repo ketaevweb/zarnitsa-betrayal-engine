@@ -25,7 +25,7 @@ import {
   SCENE_EVENTS,
   talkAvailable,
 } from "./scenario3d";
-import type { EventDef, GameState, TagId } from "./types";
+import type { EchoEntry, EventDef, GameState } from "./types";
 import {
   CARRY_MAX,
   FUEL_DECAY,
@@ -92,14 +92,6 @@ export const LEVEL_COLOR: Record<number, string> = {
 /* ---------------- автосохранение ---------------- */
 
 const SAVE_KEY = "zarnitsa3d_save_v1";
-
-/** эхо шёпота (M1.2): кого коснулся соблазн и устоял ли игрок */
-export interface EchoEntry {
-  cid: string;
-  /** true — игрок отверг шёпот против этого спутника */
-  spared: boolean;
-  tag: TagId;
-}
 
 interface SaveShape {
   state: GameState;
@@ -654,11 +646,11 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     persist(get().state, get().night, get().doneToday, get().nightStart, get().fire, { done, wood }, get().whisperDone, get().whisperEcho);
   },
 
-  /** утренний разговор со спутником (M1.1) */
+  /** утренний разговор со спутником (M1.1); текст помнит эхо ночи (M1.3) */
   openDayTalk: (cid) => {
-    const { screen, dayDone } = get();
+    const { screen, dayDone, whisperEcho } = get();
     if (screen !== "camp") return;
-    const ev = makeDayTalk(cid, get().night);
+    const ev = makeDayTalk(cid, get().night, whisperEcho);
     if (!ev || dayDone.includes(ev.id)) return;
     sfxReveal();
     set({ screen: "event", activeEvent: ev, talkMenu: null });

@@ -332,6 +332,16 @@ export function sfxPickup() {
   tone(220, 0.06, { type: "triangle", gain: 0.05, delay: 0.05 });
 }
 
+/** карканье ворона (M1.3): жёсткая пила вниз + шумовое шипение */
+export function sfxCaw() {
+  const f = 470 + Math.random() * 190;
+  tone(f, 0.17, { type: "sawtooth", gain: 0.045, slide: f * 0.68 });
+  noiseBurst(0.2, { freq: 1500, q: 0.7, gain: 0.02, delay: 0.02 });
+  if (Math.random() < 0.55) {
+    tone(f * 1.22, 0.13, { type: "sawtooth", gain: 0.032, slide: f * 0.9, delay: 0.19 });
+  }
+}
+
 /* ---------------- сердцебиение напряжения ---------------- */
 
 function heartBeat() {

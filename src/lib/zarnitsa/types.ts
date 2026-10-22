@@ -30,6 +30,14 @@ export interface TagDef {
   name: string;
 }
 
+/** эхо шёпота Мглы (M1.2): кого коснулся соблазн и устоял ли игрок */
+export interface EchoEntry {
+  cid: string;
+  /** true — игрок отверг шёпот против этого спутника */
+  spared: boolean;
+  tag: TagId;
+}
+
 export type Phase = "Утро" | "День" | "Вечер" | "Ночь";
 
 /** Запись памяти — никогда не удаляется и не тускнеет */

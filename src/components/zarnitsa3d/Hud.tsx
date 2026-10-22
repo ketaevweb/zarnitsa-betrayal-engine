@@ -510,7 +510,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.2 «Эхо ночи»
+        3D-прототип · M1.3 «Ворон над лагерем»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -644,10 +644,19 @@ function DawnOverlay() {
   const night = useZarnitsa((s) => s.night);
   const dawnGo = useZarnitsa((s) => s.dawnGo);
   const summary = useZarnitsa((s) => s.nightSummary);
+  const echo = useZarnitsa((s) => s.whisperEcho);
   useEffect(() => {
     sfxDawn();
   }, []);
   const next = Math.min(night + 1, 3);
+  // ворон (M1.3): прилетел на «шум» принятых шёпотов
+  const accepted = echo.filter((e) => !e.spared).length;
+  const crowLine =
+    accepted >= 2
+      ? "Ворон уже сидит у костра — падальщик чует, кто говорил с тьмой."
+      : accepted === 1
+        ? "Над лагерем кружит ворон — он приметил эту ночь."
+        : null;
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-[#0d0a10]/78 p-4 backdrop-blur-sm">
       {/* потоп рассвета: золотая волна по краям (M0.8) */}
@@ -670,6 +679,9 @@ function DawnOverlay() {
             <b className="text-[#c9a227]">{Math.round(mglLive.closest)}</b> шагов к огню
             {mglLive.closest <= 17 ? " — у самых спин. Отряд не забудет этот холод." : "."}
           </p>
+        )}
+        {crowLine && (
+          <p className="mt-2 text-xs leading-relaxed italic text-[#8f8694]">{crowLine}</p>
         )}
         {summary && summary.length > 0 && (
           <div className="z-panel mt-4 p-3 text-left">
