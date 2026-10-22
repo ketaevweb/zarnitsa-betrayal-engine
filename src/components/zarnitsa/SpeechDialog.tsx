@@ -60,7 +60,7 @@ export function SpeechDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-6"
+      className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-label={`Право слова: ${def.name}`}

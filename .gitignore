@@ -64,3 +64,6 @@ server.log
 # secrets
 .env
 .env.*
+
+# скриншоты браузерных проверок
+scripts/zarnitsa-web/shot*.png
