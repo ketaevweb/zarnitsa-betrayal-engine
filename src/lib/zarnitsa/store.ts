@@ -28,6 +28,7 @@ import {
   FUEL_DECAY,
   LOG_FUEL,
   LOGS_PER_PILE,
+  mglLive,
   PILLAR_FUEL,
   WOOD_PILES,
 } from "./camp3d";
@@ -287,6 +288,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const fresh = debugReset();
     const nightStart = snapshotTrust(fresh);
     const fire = freshFire(85);
+    mglLive.closest = 999;
     set({
       screen: "play",
       state: fresh,
@@ -507,6 +509,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const nightStart = snapshotTrust(state);
     // за день отряд заготовил дрова и разжёг костёр к сумеркам
     const nextFire = freshFire(fire.fuel);
+    mglLive.closest = 999;
     set({
       screen: "play",
       night: nextNight,

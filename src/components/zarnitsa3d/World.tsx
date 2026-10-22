@@ -10,7 +10,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Sparks } from "./Particles";
 import { CAMP_SPOTS, PILLAR_POS, SCENE_EVENTS } from "@/lib/zarnitsa/scenario3d";
-import { WOOD_PILES, WATCHER_ANGLES, WATCHER_R } from "@/lib/zarnitsa/camp3d";
+import { WOOD_PILES, WATCHER_ANGLES, dreadLevel, watcherTargetR } from "@/lib/zarnitsa/camp3d";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
 
 /* детерминированный рандом — лес одинаков между перезагрузками */
@@ -191,18 +191,21 @@ function Watcher({ angle, idx }: { angle: number; idx: number }) {
     const g = group.current;
     if (!g) return;
     const t = clock.getElapsedTime();
-    // радиус: плавно подходим ближе с каждой ночью
-    const targetR = WATCHER_R[night] ?? 37;
+    // живое кольцо: ночь + подступ по топливу + свой «зыбкий» шаг у фигуры (M0.9)
+    const fuel = useZarnitsa.getState().fire.fuel;
+    const dl = dreadLevel(fuel);
+    const targetR = watcherTargetR(night, fuel) - 0.7 - Math.sin(t * 0.23 + idx * 2.1) * 0.7;
     const curR = Math.hypot(g.position.x, g.position.z);
-    const nextR = curR + (targetR - curR) * Math.min(1, 0.015);
+    const rate = fuel <= 0 ? 0.032 : 0.015;
+    const nextR = curR + (targetR - curR) * Math.min(1, rate);
     const dir = Math.atan2(g.position.z, g.position.x) || angle;
     g.position.x = Math.cos(dir) * nextR;
     g.position.z = Math.sin(dir) * nextR;
-    // качание и дыхание
-    g.position.y = Math.sin(t * 0.8 + idx * 1.7) * 0.12;
-    g.rotation.y = dir + Math.PI + Math.sin(t * 0.5 + idx) * 0.12;
-    // глаза: пульс
-    const glow = 1.6 + Math.sin(t * 1.9 + idx * 2.3) * 0.9;
+    // качание и дыхание — злее при подступе
+    g.position.y = Math.sin(t * (0.8 + dl * 0.9) + idx * 1.7) * (0.12 + dl * 0.1);
+    g.rotation.y = dir + Math.PI + Math.sin(t * (0.5 + dl * 0.8) + idx) * 0.12;
+    // глаза: пульс, наливаются кровью при подступе
+    const glow = (1.6 + Math.sin(t * 1.9 + idx * 2.3) * 0.9) * (1 + dl * 1.3);
     for (const e of [eyeL.current, eyeR.current]) {
       if (e) (e.material as THREE.MeshStandardMaterial).emissiveIntensity = glow;
     }

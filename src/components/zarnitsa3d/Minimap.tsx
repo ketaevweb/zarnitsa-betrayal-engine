@@ -9,7 +9,7 @@ import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { playerAngle, playerPos } from "./Player";
 import { CAMP_SPOTS, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { COMPANIONS } from "@/lib/zarnitsa/data";
-import { WATCHER_ANGLES, WATCHER_R, WOOD_PILES } from "@/lib/zarnitsa/camp3d";
+import { WATCHER_ANGLES, dreadLevel, watcherTargetR, WOOD_PILES } from "@/lib/zarnitsa/camp3d";
 import { companionLive } from "./campLife";
 
 const FIELD = 38; // радиус поляны
@@ -53,19 +53,29 @@ export function Minimap() {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // дозорные Мглы: тёмные точки с красным глазком
-      const wr = WATCHER_R[night] ?? 37;
+      // дозорные Мглы: живой радиус по топливу, краснеют при подступе (M0.9)
+      const wr = watcherTargetR(night, fire.fuel);
+      const dl = dreadLevel(fire.fuel);
       for (const a of WATCHER_ANGLES) {
         const wx = px(Math.cos(a) * wr);
         const wz = pz(Math.sin(a) * wr);
         ctx.beginPath();
-        ctx.arc(wx, wz, 2.4, 0, Math.PI * 2);
+        ctx.arc(wx, wz, 2.4 + dl * 0.8, 0, Math.PI * 2);
         ctx.fillStyle = "rgba(14,10,20,0.9)";
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(wx, wz, 0.9, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(194,42,58,0.95)";
+        ctx.arc(wx, wz, 0.9 + dl * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = fire.fuel <= 0 ? "rgba(255,70,70,1)" : `rgba(194,42,58,${0.95 + dl * 0.05})`;
         ctx.fill();
+      }
+      // кольцо угрозы: когда Мгла подступает — красный обод по её радиусу
+      if (dl > 0.05) {
+        ctx.beginPath();
+        ctx.arc(c, c, ((c - 6) / 38) * wr, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(194,42,58,${0.15 + dl * 0.4})`;
+        ctx.lineWidth = 1 + dl;
+        ctx.stroke();
+        ctx.lineWidth = 1.5;
       }
 
       // костёр: размер по топливу

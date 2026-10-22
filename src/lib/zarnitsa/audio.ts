@@ -20,6 +20,8 @@ let enabled = true; // пользовательский тумблер
 let popTimer: ReturnType<typeof setTimeout> | null = null;
 let heartTimer: ReturnType<typeof setTimeout> | null = null;
 let heartIntensity = 0;
+let dread = 0; // Мгла подступает: 0..1 (M0.9)
+let windGain: GainNode | null = null;
 
 const LS_KEY = "zarnitsa3d_audio";
 
@@ -79,8 +81,8 @@ function buildAmbience() {
   bp.type = "bandpass";
   bp.frequency.value = 340;
   bp.Q.value = 0.6;
-  const windGain = ac.createGain();
-  windGain.gain.value = 0.05;
+  windGain = ac.createGain();
+  windGain.gain.value = 0.05 + dread * 0.11;
   const lfo = ac.createOscillator();
   lfo.frequency.value = 0.13;
   const lfoGain = ac.createGain();
@@ -330,6 +332,7 @@ export function sfxPickup() {
 function heartBeat() {
   if (!ctx || !sfxBus || !enabled || heartIntensity <= 0) return;
   const ac = ctx;
+  const bus: GainNode = sfxBus; // сужение для замыкания thump
   const t0 = ac.currentTime;
   const thump = (delay: number, peak: number) => {
     const osc = ac.createOscillator();
@@ -340,14 +343,23 @@ function heartBeat() {
     g.gain.setValueAtTime(0.0001, t0 + delay);
     g.gain.exponentialRampToValueAtTime(peak, t0 + delay + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.15);
-    osc.connect(g).connect(sfxBus);
+    osc.connect(g).connect(bus);
     osc.start(t0 + delay);
     osc.stop(t0 + delay + 0.2);
   };
-  thump(0, 0.16 + heartIntensity * 0.1);
-  thump(0.19, 0.1 + heartIntensity * 0.07);
-  const period = Math.max(0.62, 1.15 - heartIntensity * 0.4);
+  const eff = Math.min(1, heartIntensity + dread * 0.65);
+  thump(0, 0.16 + eff * 0.1);
+  thump(0.19, 0.1 + eff * 0.07);
+  const period = Math.max(0.62, 1.15 - eff * 0.4);
   heartTimer = setTimeout(heartBeat, period * 1000);
+}
+
+/** Угроза Мглы 0..1: злее ветер, чаще сердце (M0.9). Безопасно звать каждый кадр. */
+export function setDread(d: number) {
+  const next = Math.max(0, Math.min(1, d));
+  if (Math.abs(next - dread) < 0.04) return;
+  dread = next;
+  if (windGain && ctx) windGain.gain.setTargetAtTime(0.05 + dread * 0.11, ctx.currentTime, 1.4);
 }
 
 /** 0..1 — сила страха отряда; 0 выключает сердцебиение */

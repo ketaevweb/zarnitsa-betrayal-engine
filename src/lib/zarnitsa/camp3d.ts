@@ -88,3 +88,39 @@ export const DAWN_PALETTE: Palette = {
   hemi: { i: 0.9, c: "#b89068", ground: "#241a14" },
   dir: { i: 1.5, c: "#e8c890" },
 };
+
+/* ============================================================
+ * M0.9 «Кольцо стужи» — Мгла отвечает на огонь:
+ * костёр = щит. Пока топливо живо, дозорные кружат по ночному
+ * радиусу; огонь слабеет — кольцо сжимается; огонь пал — рывок
+ * к самым спинам, пока свет не вернут.
+ * ============================================================ */
+
+/** радиус, к которому Мгла рвётся, когда огонь пал */
+export const WATCHER_SURGE_R = 15;
+
+/** подступ при среднем огне (топливо 25–55) */
+export const CREEP_MID = 4;
+
+/** подступ при гаснущем огне (топливо < 25) */
+export const CREEP_LOW = 8.5;
+
+/** живой радиус дозорных: ночь + состояние костра */
+export function watcherTargetR(night: number, fuel: number): number {
+  const base = WATCHER_R[night] ?? 37;
+  if (fuel <= 0) return Math.min(base, WATCHER_SURGE_R);
+  if (fuel >= 55) return base;
+  if (fuel >= 25) return base - ((55 - fuel) / 30) * CREEP_MID;
+  return base - CREEP_MID - ((25 - fuel) / 25) * (CREEP_LOW - CREEP_MID);
+}
+
+/** напряжение 0..1 — питает глаза, ветер, сердцебиение и HUD */
+export function dreadLevel(fuel: number): number {
+  if (fuel <= 0) return 1;
+  if (fuel >= 55) return 0;
+  if (fuel >= 25) return ((55 - fuel) / 30) * 0.45;
+  return 0.45 + ((25 - fuel) / 25) * 0.55;
+}
+
+/** насколько близко Мгла подходила к огню за ночь (для итогов рассвета) */
+export const mglLive = { closest: 999 };

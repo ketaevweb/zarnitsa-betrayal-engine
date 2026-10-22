@@ -9,8 +9,8 @@ import * as THREE from "three";
 import { availableEvents, useZarnitsa } from "@/lib/zarnitsa/store";
 import { CAMP_SPOTS, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { COMPANIONS } from "@/lib/zarnitsa/data";
-import { WOOD_PILES } from "@/lib/zarnitsa/camp3d";
-import { sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
+import { WOOD_PILES, dreadLevel, mglLive, watcherTargetR } from "@/lib/zarnitsa/camp3d";
+import { setDread, sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
 import { addFootprint, companionLive, touchInput } from "./campLife";
 
 /** глобальное состояние клавиш (обновляется в GameCanvas) */
@@ -68,15 +68,18 @@ export function Player() {
       }
     }
     const len = Math.hypot(dx, dz);
+    // бег: Shift или тач-кнопка (M0.9)
+    const run = canMove && (keys.has("ShiftLeft") || keys.has("ShiftRight") || touchInput.run);
+    const speed = run ? 13.4 : 8.2;
     if (len > 0) {
       dx /= len;
       dz /= len;
-      POS.x += dx * 8.2 * dt;
-      POS.z += dz * 8.2 * dt;
+      POS.x += dx * speed * dt;
+      POS.z += dz * speed * dt;
       targetAngle.current = Math.atan2(dx, dz);
-      // шаги по снегу + след — раз в ~0.34 с ходьбы
+      // шаги по снегу + след — чаще на бегу
       stepAccum.current += dt;
-      if (stepAccum.current > 0.34) {
+      if (stepAccum.current > (run ? 0.21 : 0.34)) {
         stepAccum.current = 0;
         sfxStep();
         addFootprint(POS.x, POS.z, targetAngle.current);
@@ -141,6 +144,14 @@ export function Player() {
       LOOK.set(POS.x, 0.6, POS.z - 2);
       camera.lookAt(LOOK);
 
+      // FOV-рывок на бегу (M0.9)
+      const cam = camera as THREE.PerspectiveCamera;
+      const wantFov = run && len > 0 ? 62 : 55;
+      if (Math.abs(cam.fov - wantFov) > 0.05) {
+        cam.fov += (wantFov - cam.fov) * Math.min(1, dt * 4.5);
+        cam.updateProjectionMatrix();
+      }
+
       // тряска камеры после «укола за живое» (M0.7)
       const shakeAge = performance.now() - store.shakeAt;
       if (shakeAge >= 0 && shakeAge < 450) {
@@ -151,13 +162,21 @@ export function Player() {
       }
     }
 
+    // Мгла: живое кольцо — подступ по топливу, память о ближайшем круге (M0.9)
+    if (store.screen !== "title") {
+      const tr = watcherTargetR(store.night, store.fire.fuel);
+      if (tr < mglLive.closest) mglLive.closest = tr;
+      setDread(dreadLevel(store.fire.fuel));
+    }
+
     // шёпот Мглы: при гаснущем костре часто, на III ночи — сам по себе
     whisperAcc.current -= dt;
     if (whisperAcc.current <= 0) {
       const fuel = store.fire.fuel;
+      const dl = dreadLevel(fuel);
       const chance = fuel < 22 ? 0.55 : store.night >= 3 ? 0.25 : 0.07;
-      if (store.screen !== "title" && Math.random() < chance) sfxWhisper();
-      whisperAcc.current = 7 + Math.random() * 7;
+      if (store.screen !== "title" && Math.random() < chance + dl * 0.3) sfxWhisper();
+      whisperAcc.current = 7 + Math.random() * 7 - dl * 3.5;
     }
 
     // ближайшее взаимодействие

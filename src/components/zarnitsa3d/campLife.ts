@@ -6,8 +6,8 @@
 /** текущие позиции спутников (обновляет Companions, читает Player/Minimap) */
 export const companionLive: Record<string, { x: number; z: number }> = {};
 
-/** вектор тач-джойстика (-1..1, y — «вперёд») */
-export const touchInput = { x: 0, y: 0, active: false };
+/** вектор тач-джойстика (-1..1, y — «вперёд»), run — кнопка бега (M0.9) */
+export const touchInput = { x: 0, y: 0, active: false, run: false };
 
 /** след на снегу */
 export interface Footprint {

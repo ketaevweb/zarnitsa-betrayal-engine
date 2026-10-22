@@ -7,7 +7,7 @@ import { COMPANIONS, LADDER, COMPANION_BY_ID } from "@/lib/zarnitsa/data";
 import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
 import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
 import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
-import { PILLAR_FUEL } from "@/lib/zarnitsa/camp3d";
+import { PILLAR_FUEL, mglLive } from "@/lib/zarnitsa/camp3d";
 import {
   audioEnabled,
   audioToggle,
@@ -122,6 +122,15 @@ function FireGauge() {
   const low = fuel < 25;
   const rite = fuel >= PILLAR_FUEL;
   const color = fuel <= 0 ? "#5a5560" : low ? "#d95f3b" : "#ff9a3c";
+  // живой щит: что делает кольцо Мглы прямо сейчас (M0.9)
+  const shield =
+    fuel <= 0
+      ? { text: "Мгла в кольце!", c: "#e04a4a" }
+      : low
+        ? { text: "Мгла подступает", c: "#d95f3b" }
+        : fuel < 55
+          ? { text: "Мгла кружит", c: "#b08d5a" }
+          : { text: "Костёр держит Мглу", c: "#c9a227" };
   return (
     <span
       className="flex items-center gap-1.5 rounded-sm border border-[#32233a] bg-black/30 px-2 py-0.5"
@@ -142,10 +151,17 @@ function FireGauge() {
         />
       </span>
       <span
-        className="hidden text-[10px] tabular-nums text-[#9a8f96] sm:inline"
+        className="hidden text-[10px] font-semibold leading-none sm:inline"
+        style={{ color: shield.c }}
+        title="Огонь — щит: слабеет костёр, ближе кольцо Мглы"
+      >
+        {shield.text}
+      </span>
+      <span
+        className="hidden text-[10px] tabular-nums text-[#9a8f96] md:inline"
         title="Поленьев в руках — принеси к костру и нажми E"
       >
-        полена ×{carried}
+        ×{carried}
       </span>
       {rite && (
         <span className="hidden text-[10px] text-[#c9a227] md:inline" title="Костёр достаточно жив для обряда Столпа">
@@ -467,7 +483,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M0.8 «Дыхание костра»
+        3D-прототип · M0.9 «Кольцо стужи»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -574,6 +590,13 @@ function DawnOverlay() {
           Мгла отступает до сумерек — но записи в памяти отряда не тускнеют.
           Впереди: {nightTitle(next)}.
         </p>
+        {mglLive.closest < 900 && (
+          <p className="mt-2 text-xs leading-relaxed text-[#9a8f96]">
+            Этой ночью дозорные подходили на{" "}
+            <b className="text-[#c9a227]">{Math.round(mglLive.closest)}</b> шагов к огню
+            {mglLive.closest <= 17 ? " — у самых спин. Отряд не забудет этот холод." : "."}
+          </p>
+        )}
         {summary && summary.length > 0 && (
           <div className="z-panel mt-4 p-3 text-left">
             <p className="mb-1.5 text-[10px] uppercase tracking-[0.25em] text-[#9a8f96]">
@@ -888,6 +911,7 @@ function HintToast() {
 function TouchControls() {
   const [coarse, setCoarse] = useState(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const [runOn, setRunOn] = useState(false);
   const dragRef = useRef(false);
   const baseRef = useRef<HTMLDivElement>(null);
 
@@ -958,6 +982,22 @@ function TouchControls() {
           E
         </button>
         <div className="flex gap-2">
+          {/* бег (M0.9): тумблер — держит темп, пока не выключат */}
+          <button
+            onClick={() => {
+              touchInput.run = !touchInput.run;
+              setRunOn(touchInput.run);
+              sfxClick();
+            }}
+            className={`pointer-events-auto h-11 w-11 touch-none rounded-full border text-[11px] backdrop-blur-sm ${
+              runOn
+                ? "border-[#c9a227] bg-[#c9a227]/20 text-[#c9a227]"
+                : "border-[#32233a] bg-black/45 text-[#9a8f96]"
+            }`}
+            aria-label="бег"
+          >
+            ᚱ
+          </button>
           <button
             onClick={() => useZarnitsa.getState().toggleMap()}
             className="pointer-events-auto h-11 w-11 touch-none rounded-full border border-[#32233a] bg-black/45 text-[11px] text-[#9a8f96] backdrop-blur-sm active:border-[#c9a227]"
