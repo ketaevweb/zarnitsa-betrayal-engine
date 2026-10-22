@@ -1,0 +1,50 @@
+{
+  "id": "speech_right_default",
+  "entry": "start",
+  "nodes": [
+    {
+      "id": "start",
+      "speaker": "{companion}",
+      "text": "Стой, старшина. У меня право слова — старое право лагеря, его не отменить даже тебе. Выслушай меня, прежде чем решать мою судьбу.",
+      "choices": [
+        {
+          "text": "«Говори. Я слушаю.» — дать слово",
+          "next": "appeal",
+          "effects": {}
+        },
+        {
+          "text": "«Слова кончились.» — отказать",
+          "next": "END",
+          "effects": {
+            "speech_right_success": false,
+            "result_note": "Право слова отвергнуто"
+          }
+        }
+      ]
+    },
+    {
+      "id": "appeal",
+      "speaker": "{companion}",
+      "text": "Я был рядом у Чёрного брода. Я держал клятву, пока мог, — и держу до сих пор. Позволь мне остаться. Клятва ещё держит меня.",
+      "choices": [
+        {
+          "text": "«Клятва держит нас обоих. Остаёшься.»",
+          "next": "END",
+          "effects": {
+            "speech_right_success": true,
+            "memories": [
+              {"tag": "mercy", "valence": 1, "source_id": "player", "target_id": "{companion}", "description": "Услышал право слова и сохранил доверие"}
+            ]
+          }
+        },
+        {
+          "text": "«Довольно. Всё решено.»",
+          "next": "END",
+          "effects": {
+            "speech_right_success": false
+          }
+        }
+      ]
+    }
+  ]
+}

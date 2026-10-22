@@ -1,0 +1,33 @@
+; Engine configuration file.
+; ЗАРНИЦА: КЛЯТВА — вертикальный срез M0 (план v2.0, Godot 4)
+
+config_version=5
+
+[application]
+
+config/name="ZARNITSA: The Oath — Vertical Slice M0"
+config/version="0.1.0"
+run/main_scene="res://scenes/main/Main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*res://autoload/game_state.gd"
+TimeSystem="*res://autoload/time_system.gd"
+MemoryLog="*res://autoload/memory_log.gd"
+BetrayalEngine="*res://autoload/betrayal_engine.gd"
+DialogueManager="*res://autoload/dialogue_manager.gd"
+EventLog="*res://autoload/event_log.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
