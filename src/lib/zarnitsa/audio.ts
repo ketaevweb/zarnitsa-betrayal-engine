@@ -22,6 +22,9 @@ let heartTimer: ReturnType<typeof setTimeout> | null = null;
 let heartIntensity = 0;
 let dread = 0; // Мгла подступает: 0..1 (M0.9)
 let windGain: GainNode | null = null;
+let fireGain: GainNode | null = null;
+let dayMode = false; // дневной микс (M1.2): костёр дремлет, ветер тише, птицы
+let birdTimer: ReturnType<typeof setTimeout> | null = null;
 
 const LS_KEY = "zarnitsa3d_audio";
 
@@ -61,19 +64,20 @@ function noiseBuffer(ac: AudioContext, seconds: number, brown: boolean): AudioBu
 
 function buildAmbience() {
   const ac = ctx!;
-  // костёр: коричневый шум → lowpass
+  // костёр: коричневый шум → lowpass (днём дремлет — тише, M1.2)
   const fire = ac.createBufferSource();
   fire.buffer = noiseBuffer(ac, 2.4, true);
   fire.loop = true;
   const lp = ac.createBiquadFilter();
   lp.type = "lowpass";
   lp.frequency.value = 420;
-  const fireGain = ac.createGain();
-  fireGain.gain.value = 0.34;
-  fire.connect(lp).connect(fireGain).connect(ambBus!);
+  const fg = ac.createGain();
+  fg.gain.value = dayMode ? 0.1 : 0.34;
+  fire.connect(lp).connect(fg).connect(ambBus!);
   fire.start();
+  fireGain = fg;
 
-  // ветер: шум → bandpass, громкость дышит LFO
+  // ветер: шум → bandpass, громкость дышит LFO (днём едва слышен, M1.2)
   const wind = ac.createBufferSource();
   wind.buffer = noiseBuffer(ac, 3.1, false);
   wind.loop = true;
@@ -82,7 +86,7 @@ function buildAmbience() {
   bp.frequency.value = 340;
   bp.Q.value = 0.6;
   windGain = ac.createGain();
-  windGain.gain.value = 0.05 + dread * 0.11;
+  windGain.gain.value = dayMode ? 0.018 : 0.05 + dread * 0.11;
   const lfo = ac.createOscillator();
   lfo.frequency.value = 0.13;
   const lfoGain = ac.createGain();
@@ -149,6 +153,7 @@ export function audioStart(): boolean {
   if (!running) {
     running = true;
     popTimer = setTimeout(schedulePop, 200);
+    applyDayMix(); // если контекст создан уже в дневной фазе — дневной микс сразу
   }
   return true;
 }
@@ -359,7 +364,62 @@ export function setDread(d: number) {
   const next = Math.max(0, Math.min(1, d));
   if (Math.abs(next - dread) < 0.04) return;
   dread = next;
-  if (windGain && ctx) windGain.gain.setTargetAtTime(0.05 + dread * 0.11, ctx.currentTime, 1.4);
+  if (windGain && ctx) {
+    // днём Мглы нет — ветер не злится, что бы ни считал движок (M1.2)
+    const target = dayMode ? 0.018 : 0.05 + dread * 0.11;
+    windGain.gain.setTargetAtTime(target, ctx.currentTime, dayMode ? 0.8 : 1.4);
+  }
+}
+
+/* ---------------- дневной микс (M1.2) ---------------- */
+
+/** птица: россыпь из 2–4 коротких ноток с лёгким глиссандо */
+function chirp() {
+  if (!ctx || !enabled || !dayMode) return;
+  const n = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) {
+    const f = 2500 + Math.random() * 1800;
+    tone(f, 0.07, {
+      type: "sine",
+      gain: 0.014 + Math.random() * 0.012,
+      slide: f * (0.75 + Math.random() * 0.5),
+      delay: i * (0.09 + Math.random() * 0.06),
+    });
+  }
+}
+
+function scheduleBird() {
+  if (!running || !dayMode) return;
+  birdTimer = setTimeout(() => {
+    chirp();
+    scheduleBird();
+  }, 2400 + Math.random() * 5200);
+}
+
+/** дневной баланс громкостей (зовётся при переключении фазы и старте аудио) */
+function applyDayMix() {
+  if (!ctx) return;
+  if (windGain) {
+    windGain.gain.cancelScheduledValues(ctx.currentTime);
+    windGain.gain.setTargetAtTime(dayMode ? 0.018 : 0.05 + dread * 0.11, ctx.currentTime, 2.2);
+  }
+  if (fireGain) {
+    fireGain.gain.cancelScheduledValues(ctx.currentTime);
+    fireGain.gain.setTargetAtTime(dayMode ? 0.1 : 0.34, ctx.currentTime, 2.0);
+  }
+  if (birdTimer) {
+    clearTimeout(birdTimer);
+    birdTimer = null;
+  }
+  if (dayMode) scheduleBird();
+}
+
+/** День/ночь: костёр дремлет, ветер стихает, просыпаются птицы (M1.2).
+ *  Безопасно звать каждый кадр — выход при совпадении. */
+export function setDayMode(day: boolean) {
+  if (day === dayMode) return;
+  dayMode = day;
+  applyDayMix();
 }
 
 /** 0..1 — сила страха отряда; 0 выключает сердцебиение */

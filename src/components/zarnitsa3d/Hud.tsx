@@ -8,7 +8,7 @@ import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
 import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
 import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
 import { PILLAR_FUEL, mglLive } from "@/lib/zarnitsa/camp3d";
-import { DAY_TASKS_TOTAL, dayTitle } from "@/lib/zarnitsa/day";
+import { DAY_TASKS_TOTAL, dayTitle, echoLine } from "@/lib/zarnitsa/day";
 import { WHISPERS } from "@/lib/zarnitsa/whispers";
 import {
   audioEnabled,
@@ -510,7 +510,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.1 «Утренний обход»
+        3D-прототип · M1.2 «Эхо ночи»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -755,6 +755,8 @@ function Prompt() {
   const screen = useZarnitsa((s) => s.screen);
   const carried = useZarnitsa((s) => s.fire.carried);
   const fuel = useZarnitsa((s) => s.fire.fuel);
+  const whisperEcho = useZarnitsa((s) => s.whisperEcho);
+  const night = useZarnitsa((s) => s.night);
   if ((screen !== "play" && screen !== "camp") || !nearest) return null;
   let text: string;
   if (screen === "camp") {
@@ -780,8 +782,26 @@ function Prompt() {
   } else {
     text = `Взять полено со штабеля (в руках ${carried}/2)`;
   }
+  // эхо ночи (M1.2): утренняя реплика-память над подсказкой
+  const echo =
+    screen === "camp" && nearest.kind === "companion"
+      ? echoLine(nearest.id, whisperEcho, night + 1)
+      : null;
   return (
-    <div className="pointer-events-none absolute bottom-36 left-1/2 z-20 -translate-x-1/2">
+    <div className="pointer-events-none absolute bottom-36 left-1/2 z-20 flex w-max max-w-[92vw] -translate-x-1/2 flex-col items-center gap-1.5">
+      {echo?.text ? (
+        <div
+          className={`z-fadein max-w-[520px] rounded-sm border-l-2 bg-black/60 px-3 py-1.5 text-[12px] italic leading-snug backdrop-blur-sm ${
+            echo.tone === "scorned"
+              ? "border-[#5b7a99] text-[#a9bccf]" // холод принятия
+              : echo.tone === "spared"
+                ? "border-[#c9a227] text-[#d9c48f]" // тихое тепло отвержения
+                : "border-[#4a4152] text-[#8f8694]" // обычное утро
+          }`}
+        >
+          {echo.text}
+        </div>
+      ) : null}
       <div className="z-panel z-fadein px-4 py-2 text-sm text-[#d6cfc2]">
         <span className="mr-2 inline-block rounded-sm border border-[#c9a227] px-1.5 text-[11px] font-bold text-[#c9a227]">
           E

@@ -12,7 +12,7 @@ import { COMPANIONS } from "@/lib/zarnitsa/data";
 import { WOOD_PILES, dreadLevel, mglLive, watcherTargetR } from "@/lib/zarnitsa/camp3d";
 import { BRUSHWOOD_SPOTS } from "@/lib/zarnitsa/day";
 import { pickWhisper } from "@/lib/zarnitsa/whispers";
-import { setDread, sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
+import { setDread, setDayMode, sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
 import { addFootprint, companionLive, touchInput } from "./campLife";
 
 /** глобальное состояние клавиш (обновляется в GameCanvas) */
@@ -171,10 +171,12 @@ export function Player() {
     }
 
     // Мгла: живое кольцо — подступ по топливу, память о ближайшем круге (M0.9).
-    // Днём (M1.1) Мгла отступила — стужа отпускает.
+    // Днём (M1.1) Мгла отступила — стужа отпускает; смена дня меняет и звук (M1.2)
     if (isDay) {
       setDread(0);
+      setDayMode(true);
     } else if (store.screen !== "title") {
+      setDayMode(false);
       const tr = watcherTargetR(store.night, store.fire.fuel);
       if (tr < mglLive.closest) mglLive.closest = tr;
       setDread(dreadLevel(store.fire.fuel));

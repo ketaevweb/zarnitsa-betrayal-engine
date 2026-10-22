@@ -25,7 +25,7 @@ import {
   SCENE_EVENTS,
   talkAvailable,
 } from "./scenario3d";
-import type { EventDef, GameState } from "./types";
+import type { EventDef, GameState, TagId } from "./types";
 import {
   CARRY_MAX,
   FUEL_DECAY,
@@ -93,6 +93,14 @@ export const LEVEL_COLOR: Record<number, string> = {
 
 const SAVE_KEY = "zarnitsa3d_save_v1";
 
+/** эхо шёпота (M1.2): кого коснулся соблазн и устоял ли игрок */
+export interface EchoEntry {
+  cid: string;
+  /** true — игрок отверг шёпот против этого спутника */
+  spared: boolean;
+  tag: TagId;
+}
+
 interface SaveShape {
   state: GameState;
   night: number;
@@ -101,6 +109,10 @@ interface SaveShape {
   fire?: FireState;
   /** дневная фаза (M1.1): сейв сделан во время утреннего обхода */
   day?: { done: string[]; wood: number };
+  /** шёпоты этой ночи (M1.2: персист — лимит 2/ночь не сбрасывается сейвом) */
+  wh?: string[];
+  /** эхо ночных шёпотов (M1.2): утром отряд помнит */
+  echo?: EchoEntry[];
   at: number;
 }
 
@@ -111,11 +123,13 @@ function persist(
   nightStart: Record<string, number>,
   fire?: FireState,
   day?: { done: string[]; wood: number },
+  wh?: string[],
+  echo?: EchoEntry[],
 ) {
   try {
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ state: s, night, doneToday, nightStart, fire, day, at: Date.now() } satisfies SaveShape),
+      JSON.stringify({ state: s, night, doneToday, nightStart, fire, day, wh, echo, at: Date.now() } satisfies SaveShape),
     );
   } catch {
     /* приватный режим — играем без сохранения */
@@ -220,6 +234,8 @@ interface ZarnitsaStore {
   whisper: { id: string } | null;
   /** принятые/отвергнутые шёпоты этой ночи (не больше двух за ночь) */
   whisperDone: string[];
+  /** эхо шёпотов прошлой ночи (M1.2): утром отряд помнит, чистится на новой ночи */
+  whisperEcho: EchoEntry[];
   /** дневная фаза (M1.1): идёт утренний обход — экран camp */
   dayMode: boolean;
   /** утренние дела: пройденные разговоры (dtalk_*) и вязанки (b1..b3) */
@@ -311,6 +327,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   journalOpen: false,
   whisper: null,
   whisperDone: [],
+  whisperEcho: [],
   dayMode: false,
   dayDone: [],
   dayWood: 0,
@@ -327,6 +344,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       night: 1,
       doneToday: [],
       whisperDone: [],
+      whisperEcho: [],
       activeEvent: null,
       pendingDoneId: null,
       talkMenu: null,
@@ -390,6 +408,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       dayMode: !!save.day,
       dayDone: save.day?.done ?? [],
       dayWood: save.day?.wood ?? 0,
+      whisperDone: save.wh ?? [],
+      whisperEcho: save.echo ?? [],
     });
   },
 
@@ -494,11 +514,11 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     if (isDayTalk) {
       const dayDone = [...get().dayDone, activeEvent.id];
       set({ state: next, screen: "camp", activeEvent: null, dayDone, talkMenu: null });
-      persist(next, get().night, doneToday, get().nightStart, get().fire, { done: dayDone, wood: get().dayWood });
+      persist(next, get().night, doneToday, get().nightStart, get().fire, { done: dayDone, wood: get().dayWood }, get().whisperDone, get().whisperEcho);
       return;
     }
     set({ state: next, screen: "play", activeEvent: null, doneToday: done, talkMenu: null });
-    persist(next, get().night, done, get().nightStart, get().fire);
+    persist(next, get().night, done, get().nightStart, get().fire, undefined, get().whisperDone, get().whisperEcho);
     getAndApplyDawn(set, get, next, done);
   },
 
@@ -524,7 +544,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     }
     const done = pendingDoneId ? [...doneToday, pendingDoneId] : doneToday;
     set({ state: next, screen: get().dayMode ? "camp" : "play", pendingDoneId: null, doneToday: done });
-    persist(next, get().night, done, get().nightStart, get().fire, get().dayMode ? { done: get().dayDone, wood: get().dayWood } : undefined);
+    persist(next, get().night, done, get().nightStart, get().fire, get().dayMode ? { done: get().dayDone, wood: get().dayWood } : undefined, get().whisperDone, get().whisperEcho);
     getAndApplyDawn(set, get, next, done);
   },
 
@@ -582,7 +602,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       journalOpen: false,
       fire: { ...fire, carried: 0 },
     });
-    persist(state, night, get().doneToday, get().nightStart, get().fire, { done: [], wood: 0 });
+    persist(state, night, get().doneToday, get().nightStart, get().fire, { done: [], wood: 0 }, get().whisperDone, get().whisperEcho);
   },
 
   /** сумерки — костёр разводят заново, ночь N+1 начинается */
@@ -601,6 +621,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       night: nextNight,
       doneToday: [],
       whisperDone: [],
+      whisperEcho: [], // эхо ночи прожито утром — новый круг стужи (M1.2)
       activeEvent: null,
       pendingDoneId: null,
       nearest: null,
@@ -630,7 +651,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
         ? `Вязанка хвороста в общий штабель — завтрашний костёр крепче (+${DAY_WOOD_FUEL} жара)`
         : "Хвороста довольно — завтрашний костёр будет полон сил",
     );
-    persist(get().state, get().night, get().doneToday, get().nightStart, get().fire, { done, wood });
+    persist(get().state, get().night, get().doneToday, get().nightStart, get().fire, { done, wood }, get().whisperDone, get().whisperEcho);
   },
 
   /** утренний разговор со спутником (M1.1) */
@@ -713,6 +734,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const state = get().state;
     const before = snapshotTrust(state);
     let next = state;
+    // эхо (M1.2): кого коснулся соблазн — утром отряд это вспомнит
+    const echo: EchoEntry[] = [];
     if (accept) {
       const targets =
         def.targets === "all"
@@ -720,18 +743,23 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
               .filter((p) => !p.gone)
               .map((p) => p.id)
           : def.targets;
+      for (const t of targets) echo.push({ cid: t, spared: false, tag: def.tag });
       next = applyWhisper(state, targets, def.tag, def.valence, def.label);
       // принятие — укол: диссонанс и тряска
       sfxNeedle();
       set({ shakeAt: performance.now() });
     } else if (def.rejTargets && def.rejTag && def.rejValence != null && def.rejLabel) {
+      for (const t of def.rejTargets) echo.push({ cid: t, spared: true, tag: def.rejTag });
       next = applyWhisper(state, def.rejTargets, def.rejTag, def.rejValence, def.rejLabel);
       sfxReveal();
     }
 
     const diff = trustDiff(before, next);
     get().pushFloaters(diff);
-    set({ state: next });
+    set({
+      state: next,
+      whisperEcho: echo.length ? [...get().whisperEcho, ...echo] : get().whisperEcho,
+    });
     if (next.speechTarget) {
       set({ screen: "speech", talkMenu: null, activeEvent: null });
     } else if (next.finished) {
