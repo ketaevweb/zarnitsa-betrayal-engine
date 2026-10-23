@@ -15,7 +15,7 @@ import {
 import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
 import { PILLAR_FUEL, mglLive } from "@/lib/zarnitsa/camp3d";
 import { DAY_TASKS_TOTAL, dayTitle, echoLine } from "@/lib/zarnitsa/day";
-import { WHISPERS } from "@/lib/zarnitsa/whispers";
+import { whisperById } from "@/lib/zarnitsa/whispers";
 import {
   audioEnabled,
   audioToggle,
@@ -610,7 +610,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.10 «Пауза»
+        3D-прототип · M1.11 «Мгла помнит»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -700,7 +700,7 @@ function IntroOverlay() {
 function WhisperOverlay() {
   const w = useZarnitsa((s) => s.whisper);
   const resolve = useZarnitsa((s) => s.resolveWhisper);
-  const def = WHISPERS.find((x) => x.id === w?.id);
+  const def = whisperById(w?.id ?? "");
   const typed = useTypedText(def ? [def.text] : [""]);
   if (!w || !def) return null;
   const typing = typed.shown < typed.full.length;

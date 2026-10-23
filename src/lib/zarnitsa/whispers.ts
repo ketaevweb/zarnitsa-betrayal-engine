@@ -11,6 +11,7 @@
 
 import type { TagId } from "./types";
 import type { GameState } from "./types";
+import { getChronicle, pastMemory, prevRun, type ChronicleEntry } from "./chronicle";
 
 export interface WhisperDef {
   id: string;
@@ -120,9 +121,77 @@ export const WHISPERS: WhisperDef[] = [
 
 /** Выбор шёпота: по ночи, без повторов; мишень не должна уйти из отряда. */
 export function pickWhisper(night: number, done: string[], state: GameState): WhisperDef | null {
-  const pool = WHISPERS.filter(
-    (w) => w.night <= night && !done.includes(w.id) && (!w.targets[0] || !state.party[w.targets[0]]?.gone),
-  );
+  const pool = whisperPool(night, done, state);
   if (pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)] ?? null;
+}
+
+/* ============================================================
+ * M1.11 «Мгла помнит» — мета-шёпот летописи.
+ * На третьей ночи, если летопись хранит хоть один завершённый
+ * поход, Мгла узнаёт вернувшегося игрока и заговаривает его
+ * собственной историей. Принятие — новая трещина в клятве;
+ * отказ — стойкость перед повтором старой ночи.
+ * ============================================================ */
+
+export const PAST_WHISPER_ID = "w_past";
+
+const PAST_TEXT: Record<string, string> = {
+  "НОЖ ПОД КЛЯТВОЙ":
+    "Прошлый раз ты тоже стоял у Столпа… и нож тоже вышел. Я лишь подала его. Давай повторим — тебе понравилось.",
+  "УШЛИ ЖИВЫМИ":
+    "Ты уже уходил от меня живым. Для тех, кто рядом, это плохо кончается. Спроси свой отряд… а, он уже другой.",
+  "КЛЯТВА В ТРЕЩИНАХ":
+    "Твоя прошлая клятва треснула на третьей ночи. Я слышала звук. Эта звучит точно так же.",
+  "ТРИ НОЧИ ПОД МГЛОЙ":
+    "Мы уже гуляли с тобой три ночи. Тогда ты отдал своё. Ты мало меняешься, вожак.",
+  "КЛЯТВА ДЕРЖИТ":
+    "В прошлый раз клятва держала. Я терпеливая. Я запомнила, где она держалась, — там и надавлю.",
+};
+
+/** личный шёпот Мглы о последнем завершённом походе игрока */
+export function makePastWhisper(entry: ChronicleEntry): WhisperDef {
+  const head = entry.oath
+    ? "Тогда ты произнёс обет молчанием — я до сих пор храню эту тишину. "
+    : "";
+  const body = PAST_TEXT[entry.title] ??
+    `Ты уже стоял у Столпа. Прошлый раз ${pastMemory(entry.title)}. Я всё помню — я всё записываю.`;
+  return {
+    id: PAST_WHISPER_ID,
+    night: 3,
+    text: `${head}${body}`,
+    accept: "Ответить: «Да, я возвращался. И вернусь снова»",
+    reject: "«Твоя память — не моя. Я здесь впервые за этот поход»",
+    targets: "all",
+    tag: "oath",
+    valence: -2,
+    label: "Принял шёпот о прошлых походах — Мгла узнана в ответ",
+    rejTargets: ["gavrila"],
+    rejTag: "oath",
+    rejValence: 1,
+    rejLabel: "Ветеран услышал: вожак отрезал Мгле дорогу в прошлое",
+  };
+}
+
+/** общий пул шёпота на данную ночь: базовые + мета-шёпот летописи (ночь III) */
+export function whisperPool(night: number, done: string[], state: GameState): WhisperDef[] {
+  const pool: WhisperDef[] = [...WHISPERS];
+  if (night >= 3 && !done.includes(PAST_WHISPER_ID)) {
+    const last = prevRun();
+    if (last) pool.push(makePastWhisper(last));
+  }
+  return pool.filter(
+    (w) => w.night <= night && !done.includes(w.id) && (!w.targets[0] || !state.party[w.targets[0]]?.gone),
+  );
+}
+
+/** единый поиск определения шёпота — общий пул + мета-шёпот летописи */
+export function whisperById(id: string): WhisperDef | null {
+  const base = WHISPERS.find((w) => w.id === id);
+  if (base) return base;
+  if (id === PAST_WHISPER_ID) {
+    const last = getChronicle()[getChronicle().length - 1];
+    return last ? makePastWhisper(last) : null;
+  }
+  return null;
 }

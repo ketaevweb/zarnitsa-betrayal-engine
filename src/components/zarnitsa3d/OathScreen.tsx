@@ -9,10 +9,20 @@
  * движок предательства заметит молчание и вернёт его в развязке
  * («клятва дрожала с первого слова»), а летопись походов
  * отметит такую запись знаком ⸸.
+ *
+ * M1.11 «Мгла помнит»: летопись завершённых походов читается
+ * обратно — Столп узнаёт вернувшегося игрока и называет счёт
+ * походов; Мгла помнит, чем кончился прошлый раз.
  * ============================================================ */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
+import {
+  getChronicle,
+  getChronicleServer,
+  pastMemory,
+  subscribeChronicle,
+} from "@/lib/zarnitsa/chronicle";
 
 const OATH_LINES = [
   "Стоять у огня, пока стоит ночь.",
@@ -21,8 +31,22 @@ const OATH_LINES = [
   "Столп помнит. Лес помнит. И я помню.",
 ];
 
+/** порядковое слово для счётчика походов (летопись хранит максимум восемь) */
+const RUN_ORDINALS = [
+  "первый",
+  "второй",
+  "третий",
+  "четвёртый",
+  "пятый",
+  "шестой",
+  "седьмой",
+  "восьмой",
+];
+
 export function OathScreen() {
   const oathSay = useZarnitsa((s) => s.oathSay);
+  const entries = useSyncExternalStore(subscribeChronicle, getChronicle, getChronicleServer);
+  const last = entries.length ? (entries[entries.length - 1] ?? null) : null;
   const [shown, setShown] = useState(false);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
@@ -67,6 +91,26 @@ export function OathScreen() {
       >
         столп присяги · перед первой ночью
       </p>
+
+      {/* M1.11 «Мгла помнит»: Столп узнаёт вернувшегося игрока по следу прошлой развязки */}
+      {last && (
+        <div
+          className="mt-5 max-w-xl text-center"
+          style={{ opacity: shown ? 1 : 0, transition: "opacity 1.5s ease 0.25s" }}
+        >
+          <p className="text-[13px] italic leading-relaxed text-[#7d7381]">
+            Столп узнаёт тебя: это твой {RUN_ORDINALS[entries.length - 1] ?? `${entries.length}-й`} поход.
+          </p>
+          <p className="mt-1 text-[13px] italic leading-relaxed text-[#6f6470]">
+            Мгла помнит: в прошлый раз {pastMemory(last.title)}.
+            {last.oath && (
+              <span className="block text-[#5f565c]">
+                Тогда обет был молчанием — тишину хранят рядом с ножом.
+              </span>
+            )}
+          </p>
+        </div>
+      )}
 
       <div className="mt-8 max-w-xl space-y-4 text-center">
         {OATH_LINES.map((line, i) => (

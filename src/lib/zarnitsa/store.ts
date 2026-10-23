@@ -16,9 +16,9 @@ import {
   withPhase,
   type SpeechOption,
 } from "./engine";
-import { WHISPERS } from "./whispers";
+import { whisperById } from "./whispers";
 import { BRUSHWOOD_SPOTS, DAY_WOOD_CAP, DAY_WOOD_FUEL, makeDayTalk } from "./day";
-import { recordRun } from "./chronicle";
+import { getChronicle, recordRun } from "./chronicle";
 import {
   NIGHT_COUNT,
   NIGHT_TITLES,
@@ -485,9 +485,11 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       return;
     }
     // развязка (M1.4): если клятва надломлена — Мгла выходит из тумана первой;
-    // ворон (M1.5) уже на Столпе — падальщики приходят раньше ножей
+    // ворон (M1.5) уже на Столпе — падальщики приходят раньше ножей;
+    // Мгла помнит (M1.11): последняя запись летописи узнаёт вернувшегося игрока
     if (id === "e12") {
-      const fin = makeFinaleEvent(get().state, get().whisperEcho);
+      const chron = getChronicle();
+      const fin = makeFinaleEvent(get().state, get().whisperEcho, chron[chron.length - 1] ?? null);
       if (fin) {
         sfxReveal();
         sfxWhisper();
@@ -816,7 +818,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   resolveWhisper: (accept) => {
     const w = get().whisper;
     if (!w) return;
-    const def = WHISPERS.find((x) => x.id === w.id);
+    const def = whisperById(w.id);
     set({ whisper: null, whisperDone: [...get().whisperDone, w.id] });
     if (!def) return;
 

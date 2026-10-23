@@ -14,6 +14,7 @@ import type { EchoEntry, EventDef, GameState, MemoryEffect, TagId } from "./type
 import { EVENTS } from "./scenario";
 import { COMPANION_BY_ID } from "./data";
 import { AMBIENT_EVENTS } from "./ambient3d";
+import { pastMemory, type ChronicleEntry } from "./chronicle";
 
 export interface SceneEvent extends EventDef {
   night: number;
@@ -328,8 +329,13 @@ const NAME_GEN: Record<string, string> = {
   ratmir: "Ратмира",
 };
 
-/** финальная сцена предательства; null — клятва чиста, игнор обычного e12 */
-export function makeFinaleEvent(state: GameState, echo: EchoEntry[]): EventDef | null {
+/** финальная сцена предательства; null — клятва чиста, игнор обычного e12.
+ *  prev (M1.11) — последняя запись летописи: Мгла узнаёт вернувшегося игрока */
+export function makeFinaleEvent(
+  state: GameState,
+  echo: EchoEntry[],
+  prev?: ChronicleEntry | null,
+): EventDef | null {
   const cid = finaleCandidates(state)[0];
   if (!cid) return null;
   const cs = state.party[cid];
@@ -366,6 +372,13 @@ export function makeFinaleEvent(state: GameState, echo: EchoEntry[]): EventDef |
   if (state.flags["oath_hesitated"]) {
     text.push(
       "И ещё она помнит то, чего не было: у Столпа, перед первой ночью, ты держал молчание дольше, чем позволяет обет. Клятва дрожала с первого слова — Мгла просто дождалась, где она порвётся.",
+    );
+  }
+  // M1.11 «Мгла помнит»: летопись хранит прошлые развязки — и Мгла узнаёт игрока
+  if (prev) {
+    text.push(
+      `Она видела тебя раньше. Прошлый раз ${pastMemory(prev.title)} — Столп всё ещё держит след того похода, а Мгла держит твой почерк.` +
+        (prev.oath ? " И тишину, которой ты тогда ответил на обет, она хранит рядом с ножом." : ""),
     );
   }
   // ворон (M1.5): знамение дневной фазы досиживает развязку на изголовье Столпа

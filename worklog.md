@@ -192,3 +192,26 @@ Work Log:
 Stage Summary:
 - M1.10 closed: the game finally has a pause — Esc/P freezes the whole world through a single gate (frameloop never), the overlay offers continue / mute / exit-to-title, and the run survives in the save.
 - Push to GitHub after commit (origin/main → M1.10).
+
+---
+
+Task ID: 16 (session 8, continued)
+Agent: main
+Task: M1.11 «Мгла помнит» (chronicle reads back into the run)
+
+Work Log:
+- Session start: git state verified — M1.10 (3cae28f) committed AND pushed; origin/main in sync.
+- M1.11 implemented — the meta-memory loop closes: летопись (M1.7) теперь не только смотрит из титула наружу, но и читается обратно в новый поход.
+  - chronicle.ts: prevRun() (последняя запись летописи) + pastMemory(title) — короткая фраза о прошлой развязке для шаблонов Мглы («нож лёг под клятву», «ты вышел живым…», «клятва треснула, но не рассыпалась», «она забрала то, за чем пришла», «клятва держала — и ей это не понравилось»; запасная для неизвестных титулов).
+  - whispers.ts: PAST_WHISPER_ID ("w_past") + makePastWhisper(entry) — личный шёпот Мглы о последнем завершённом походе (своя реплика на каждый титул; при entry.oath — приставка про хранимую тишину обета); whisperPool(night, done, state) — пул шёпотов с мета-шёпотом только на ночи III и только раз за поход; whisperById(id) — единый поиск определения (общий пул + мета). Принятие — «оath» −2 всем живым; отказ — +1 Гавриле («отрезал Мгле дорогу в прошлое»).
+  - scenario3d.ts: makeFinaleEvent(state, echo, prev?) — при наличии прошлой записи вставляет абзац узнавания («Она видела тебя раньше. Прошлый раз …») с хвостом про тишину молчавшего обета; стоит до строки о вороне.
+  - store.ts: openEvent("e12") передаёт makeFinaleEvent последнюю запись летописи; resolveWhisper ищет определение через whisperById (мета-шёпот разрешается).
+  - OathScreen.tsx: блок памяти возвращавшемуся — «Столп узнаёт тебя: это твой N-й поход» (порядковые слова до восьмого) + «Мгла помнит: в прошлый раз …» + строка про молчание; тихий серый курсив под надзаголовком, позднее проявление.
+  - Hud.tsx: WhisperOverlay читает def через whisperById; версия M1.11 «Мгла помнит».
+  - simulate3d.ts: секция 10 «МГЛА ПОМНИТ» (18 проверок) — пустая летопись (нет мета-шёпота, развязка не узнаёт), запись «НОЖ ПОД КЛЯТВОЙ» (шёпот и развязка знают титул), ночь II/III и неповторяемость, промолчавший обет в шёпоте и развязке, порядок до ворона, запасные фразы; летопись чистится до и после секции.
+- Static checks: tsc (src+scripts — чисто; сторонние examples/skills/upload не в счёт) + eslint чисто; simulate3d ALL CHECKS PASSED (секции 1–10).
+- Browser verification (all green): injected 2 chronicle entries (last = НОЖ ПОД КЛЯТВОЙ + oath) → титул «M1.11 «Мгла помнит»» + панель летописи; экран обета показывает «Столп узнаёт тебя: это твой второй поход» / «нож лёг под клятву» / «Тогда обет был молчанием» — shot_m111_oath_memory.png; обет произнесён → ночь I; openWhisper("w_past") → оверлей шёпота знает и нож, и тишину — shot_m111_whisper_past.png; принятие → flags.wh_w_past + память (oath, −2) Гавриле; прыжок в развязку (night 3, fuel 90, finale hook, e12) → текст содержит «Она видела тебя раньше. Прошлый раз нож лёг под клятву…» до строки о вороне — shot_m111_finale_prev.png; choose(0) → конец «НОЖ ПОД КЛЯТВОЙ», летопись дозаписана (3 записи, последняя oath=false — обет был произнесён); console чистая. Тестовые данные стёрты, браузер закрыт.
+
+Stage Summary:
+- M1.11 closed: движок предательства получил полное кольцо памяти — прошлые развязки больше не остаются за кадром: Столп считает походы, Мгла шепчет о ноже и тишине на третьей ночи, развязка узнаёт почерк игрока, а новый конец ложится в летопись рядом со старыми.
+- Push to GitHub after commit (origin/main → M1.11).

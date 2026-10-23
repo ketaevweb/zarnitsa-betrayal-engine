@@ -90,6 +90,34 @@ export function clearChronicle(): void {
   emitChronicle();
 }
 
+/** последняя запись летописи — «прошлый поход» (M1.11 «Мгла помнит») */
+export function prevRun(): ChronicleEntry | null {
+  const chron = getChronicle();
+  return chron.length ? (chron[chron.length - 1] ?? null) : null;
+}
+
+/**
+ * M1.11 «Мгла помнит»: короткая фраза о прошлой развязке — то,
+ * чем Мгла узнаёт вернувшегося игрока. Встраивается в шаблоны:
+ * «…в прошлый раз {фраза}» / «Она видела тебя раньше: {фраза}».
+ */
+export function pastMemory(title: string): string {
+  switch (title) {
+    case "НОЖ ПОД КЛЯТВОЙ":
+      return "нож лёг под клятву";
+    case "УШЛИ ЖИВЫМИ":
+      return "ты вышел живым — и она запомнила, чем это куплено";
+    case "КЛЯТВА В ТРЕЩИНАХ":
+      return "клятва треснула, но не рассыпалась";
+    case "ТРИ НОЧИ ПОД МГЛОЙ":
+      return "она забрала то, за чем пришла";
+    case "КЛЯТВА ДЕРЖИТ":
+      return "клятва держала — и ей это не понравилось";
+    default:
+      return "поход кончился так, как кончаются походы под Мглой";
+  }
+}
+
 /* ---------- подписка (useSyncExternalStore) ---------- */
 
 const EMPTY: ChronicleEntry[] = [];

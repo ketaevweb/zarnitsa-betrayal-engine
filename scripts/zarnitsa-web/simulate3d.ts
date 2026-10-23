@@ -29,7 +29,13 @@ import {
 } from "../../src/lib/zarnitsa/scenario3d";
 import { AMBIENT_EVENTS } from "../../src/lib/zarnitsa/ambient3d";
 import { makeDayTalk } from "../../src/lib/zarnitsa/day";
-import { recordRun } from "../../src/lib/zarnitsa/chronicle";
+import {
+  clearChronicle,
+  pastMemory,
+  prevRun,
+  recordRun,
+} from "../../src/lib/zarnitsa/chronicle";
+import { PAST_WHISPER_ID, whisperById, whisperPool } from "../../src/lib/zarnitsa/whispers";
 import { useZarnitsa } from "../../src/lib/zarnitsa/store";
 import type { Choice, GameState, TagId } from "../../src/lib/zarnitsa/types";
 
@@ -584,6 +590,99 @@ assert(
 // убрать тестовый сейв, чтобы не мешать следующим прогонам
 useZarnitsa.getState().toTitle();
 window.localStorage.clear();
+
+/* --- 10. МГЛА ПОМНИТ (M1.11): летопись читается обратно в новый поход --- */
+console.log("\n10) МГЛА ПОМНИТ: прошлые развязки входят в новую ночь");
+
+// чистая летопись — детерминированный старт секции
+clearChronicle();
+
+// а. пустая летопись: мета-шёпота нет, развязка никого не узнаёт
+assert(prevRun() === null, "пустая летопись — прошлых походов нет");
+assert(
+  !whisperPool(3, [], finBase).some((w) => w.id === PAST_WHISPER_ID),
+  "без летописи мета-шёпот не входит в пул ночи III",
+);
+assert(whisperById(PAST_WHISPER_ID) === null, "без летописи мета-шёпот не разрешается");
+const finNoPrev = makeFinaleEvent(finBase, [], null);
+assert(
+  finNoPrev !== null && !finNoPrev.text.some((p) => p.includes("видела тебя раньше")),
+  "без летописи развязка не узнаёт игрока",
+);
+
+// б. запись «НОЖ ПОД КЛЯТВОЙ» → Мгла узнаёт вернувшегося
+recordRun(finBase, { title: "НОЖ ПОД КЛЯТВОЙ", subtitle: "тест летописи" });
+const prev = prevRun();
+assert(prev !== null && prev.title === "НОЖ ПОД КЛЯТВОЙ", "летопись отдаёт последнюю запись");
+assert(pastMemory("НОЖ ПОД КЛЯТВОЙ") === "нож лёг под клятву", "память развязки: нож под клятвой");
+
+// в. мета-шёпот живёт только на ночи III и только раз за поход
+assert(
+  whisperPool(3, [], finBase).some((w) => w.id === PAST_WHISPER_ID),
+  "ночь III: мета-шёпот в пуле шёпотов",
+);
+assert(
+  !whisperPool(2, [], finBase).some((w) => w.id === PAST_WHISPER_ID),
+  "ночь II: летопись пока молчит",
+);
+assert(
+  !whisperPool(3, [PAST_WHISPER_ID], finBase).some((w) => w.id === PAST_WHISPER_ID),
+  "сказанный мета-шёпот не повторяется",
+);
+const pastW = whisperById(PAST_WHISPER_ID);
+assert(
+  pastW !== null && pastW.text.includes("нож"),
+  "шёпот Мглы знает прошлую развязку («нож»)",
+);
+
+// г. запись с промолчавшим обетом — шёпот помнит и тишину, и титул
+const hesRun = structuredClone(finBase);
+hesRun.flags["oath_hesitated"] = true;
+recordRun(hesRun, { title: "КЛЯТВА ДЕРЖИТ", subtitle: "" });
+const pastW2 = whisperById(PAST_WHISPER_ID);
+assert(
+  pastW2 !== null && pastW2.text.includes("молчанием"),
+  "шёпот помнит промолчавший обет",
+);
+assert(
+  pastW2 !== null && pastW2.text.includes("клятва держала"),
+  "шёпот знает титул последней развязки",
+);
+
+// д. развязка узнаёт вернувшегося — до строки о вороне
+const finPrev = makeFinaleEvent(finBase, [], prevRun());
+const recogIdx = finPrev?.text.findIndex((p) => p.includes("видела тебя раньше")) ?? -1;
+const crowIdx2 = finPrev?.text.findIndex((p) => p.includes("ворон")) ?? -1;
+assert(recogIdx >= 0, "развязка узнаёт вернувшегося игрока");
+assert(crowIdx2 > recogIdx, "узнавание стоит до строки о вороне");
+assert(
+  finPrev !== null && finPrev.text.some((p) => p.includes("клятва держала")),
+  "развязка называет прошлый титул",
+);
+// е. и тень молчавшего обета в развязке тоже
+const hesFin = structuredClone(finBase);
+hesFin.flags["oath_hesitated"] = true;
+const finBoth = makeFinaleEvent(hesFin, [], prevRun());
+assert(
+  finBoth !== null &&
+    finBoth.text.some((p) => p.includes("дрожала")) &&
+    finBoth.text.some((p) => p.includes("тишину")),
+  "в развязке помнят и тишину обета, и прошлый поход",
+);
+// ж. неизвестный титул — запасные фразы
+assert(
+  pastMemory("СТРАННАЯ РАЗВЯЗКА").includes("поход кончился"),
+  "неизвестный титул получает запасную фразу памяти",
+);
+recordRun(finBase, { title: "СТРАННАЯ РАЗВЯЗКА", subtitle: "" });
+const pastW3 = whisperById(PAST_WHISPER_ID);
+assert(
+  pastW3 !== null && pastW3.text.includes("Ты уже стоял у Столпа"),
+  "для неизвестного титула шёпот уходит в запасной текст",
+);
+
+//убрать тестовую летопись
+clearChronicle();
 
 console.log("\n================================");
 if (failures.length === 0) {
