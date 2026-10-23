@@ -29,6 +29,7 @@ import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
 import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
 import { Minimap } from "./Minimap";
 import { EndingTitle, titleTone } from "./EndingTitle";
+import { OathScreen } from "./OathScreen";
 import { touchInput } from "./campLife";
 import { getChronicle, getChronicleServer, subscribeChronicle, type ChronicleRow } from "@/lib/zarnitsa/chronicle";
 
@@ -561,6 +562,14 @@ function ChroniclePanel() {
                 {e.title}
               </span>
               <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                {e.oath && (
+                  <span
+                    className="text-[10px] text-[#8c1f28]"
+                    title="обет был произнесён молчанием — клятва дрожала"
+                  >
+                    ⸸
+                  </span>
+                )}
                 {e.whispers > 0 && (
                   <span className="text-[10px] tabular-nums text-[#7a8aa0]" title="принятых шёпотов за прогон">
                      {(e.whispers).toString()}
@@ -593,7 +602,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.7 «Летопись походов»
+        3D-прототип · M1.8 «Обет»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -1123,8 +1132,15 @@ function Vignette() {
     return () => setHeartbeat(0);
   }, [hot, screen, level]);
 
-  // днём (M1.1) виньетка отпускает — утро даёт передышку
-  if (screen === "title" || screen === "end" || screen === "camp" || intensity < 0.02) return null;
+  // днём (M1.1) виньетка отпускает — утро даёт передышку; на обете тоже тишина
+  if (
+    screen === "title" ||
+    screen === "oath" ||
+    screen === "end" ||
+    screen === "camp" ||
+    intensity < 0.02
+  )
+    return null;
   return (
     <>
       <div
@@ -1292,8 +1308,8 @@ export function Hud() {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
-      {screen !== "title" && <TopBar />}
-      {screen !== "title" && <Pult />}
+      {screen !== "title" && screen !== "oath" && <TopBar />}
+      {screen !== "title" && screen !== "oath" && <Pult />}
       {screen === "play" || screen === "camp" ? (
         <div className="mt-auto flex gap-2 px-3 pb-16">
           {COMPANIONS.map((c) => (
@@ -1302,7 +1318,7 @@ export function Hud() {
         </div>
       ) : null}
       <Prompt />
-      {screen !== "title" && screen !== "end" && <LogTicker />}
+      {screen !== "title" && screen !== "end" && screen !== "oath" && <LogTicker />}
       <ControlsHint />
       <Minimap />
       <Vignette />
@@ -1312,6 +1328,7 @@ export function Hud() {
       <JournalOverlay />
       <WhisperOverlay />
       {screen === "title" && <TitleScreen />}
+      {screen === "oath" && <OathScreen />}
       {screen === "event" && activeEventId && <EventModal key={activeEventId} />}
       <TalkMenu />
       {screen === "speech" && state.speechTarget && (

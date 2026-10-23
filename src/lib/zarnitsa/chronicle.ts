@@ -27,6 +27,8 @@ export interface ChronicleEntry {
   memoryCount: number;
   /** принятых шёпотов за прогон (flags wh_*) */
   whispers: number;
+  /** M1.8: обет был произнесён молчанием — «клятва дрожала» */
+  oath: boolean;
   rows: ChronicleRow[];
 }
 
@@ -58,6 +60,7 @@ export function recordRun(
     gold: state.gold,
     memoryCount: Object.values(state.party).reduce((a, cs) => a + cs.memories.length, 0),
     whispers: Object.keys(state.flags).filter((k) => k.startsWith("wh_")).length,
+    oath: state.flags["oath_hesitated"] === true,
     rows: Object.values(state.party).map((cs) => ({
       cid: cs.id,
       level: cs.level,

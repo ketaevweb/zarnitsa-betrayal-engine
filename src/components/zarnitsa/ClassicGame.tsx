@@ -20,6 +20,7 @@ import {
 } from "@/lib/zarnitsa/engine";
 import { EVENTS } from "@/lib/zarnitsa/scenario";
 import type { GameState } from "@/lib/zarnitsa/types";
+import { recordRun } from "@/lib/zarnitsa/chronicle";
 import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
 import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
 import { EndScreen } from "@/components/zarnitsa/EndScreen";
@@ -70,6 +71,7 @@ export default function ClassicGame() {
     setPulse((p) => p + 1);
     if (next.finished) {
       setScreen("end");
+      recordRun(next, buildEnding(next)); // летопись походов — общая и для классики
       return;
     }
     setEventIndex((i) => Math.min(i + 1, EVENTS.length - 1));

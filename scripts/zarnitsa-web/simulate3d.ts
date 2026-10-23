@@ -29,7 +29,28 @@ import {
 } from "../../src/lib/zarnitsa/scenario3d";
 import { AMBIENT_EVENTS } from "../../src/lib/zarnitsa/ambient3d";
 import { makeDayTalk } from "../../src/lib/zarnitsa/day";
+import { recordRun } from "../../src/lib/zarnitsa/chronicle";
 import type { Choice, GameState, TagId } from "../../src/lib/zarnitsa/types";
+
+/* chronicle.ts пишет через window.localStorage — в bun его нет,
+ * подставляем минимальный шим (проверки летописи M1.8) */
+if (typeof (globalThis as { window?: unknown }).window === "undefined") {
+  const mem = new Map<string, string>();
+  (globalThis as unknown as { window: object }).window = {
+    localStorage: {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        mem.set(k, v);
+      },
+      removeItem: (k: string) => {
+        mem.delete(k);
+      },
+    },
+    dispatchEvent: () => true,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+}
 
 /* ---------- утилиты ---------- */
 
@@ -441,6 +462,31 @@ assert(
   evMulti !== null && evMulti.text[0]!.includes("Ратмир"),
   "при нескольких ушедших говорят о первом",
 );
+
+/* --- 7. ОБЕТ (M1.8): молчание у Столпа возвращается в развязке и летописи --- */
+console.log("\n7) ОБЕТ: Мгла помнит и то, что прозвучало в тишине");
+
+// а. чистый обет — строки о дрожавшей клятве нет
+const finClean = makeFinaleEvent(finBase, []);
+assert(
+  finClean !== null && !finClean.text.some((p) => p.includes("дрожала")),
+  "произнесённый обет не звучит в развязке",
+);
+// б. промолчавший обет — Мгла припомнила молчание до строки о вороне
+const finHes = structuredClone(finBase);
+finHes.flags["oath_hesitated"] = true;
+const hesEvent = makeFinaleEvent(finHes, []);
+const hesIdx = hesEvent?.text.findIndex((p) => p.includes("дрожала")) ?? -1;
+const crowIdx = hesEvent?.text.findIndex((p) => p.includes("ворон")) ?? -1;
+assert(hesIdx >= 0, "молчание у Столпа возвращается в развязке («клятва дрожала»)");
+assert(hesIdx >= 0 && crowIdx > hesIdx, "эхо обета стоит до строки о вороне");
+// в. летопись помечает дрожавшую клятву
+assert(
+  recordRun(finHes, buildEnding(finHes))?.oath === true,
+  "летопись походов помечает промолчавший обет (⸸)",
+);
+const recClean = recordRun(finBase, buildEnding(finBase));
+assert(recClean !== null && recClean.oath === false, "произнесённый обет не помечен");
 
 console.log("\n================================");
 if (failures.length === 0) {

@@ -22,6 +22,7 @@ import { recordRun } from "./chronicle";
 import {
   NIGHT_COUNT,
   NIGHT_TITLES,
+  FINALE_EVENT_ID,
   makeFinaleEvent,
   nightEvents,
   makeTalkEvent,
@@ -52,7 +53,7 @@ import {
   sfxWhisper,
 } from "./audio";
 
-export type Screen = "title" | "play" | "camp" | "event" | "speech" | "dawn" | "end";
+export type Screen = "title" | "oath" | "play" | "camp" | "event" | "speech" | "dawn" | "end";
 
 export interface Nearest {
   kind: "event" | "companion" | "fire" | "wood";
@@ -242,6 +243,8 @@ interface ZarnitsaStore {
   dayWood: number;
 
   start: () => void;
+  /** M1.8: произнести обет у Столпа (hesitated — промолчал, Мгла заметила) */
+  oathSay: (hesitated: boolean) => void;
   toTitle: () => void;
   resumeRun: () => void;
   refreshHasSave: () => void;
@@ -351,8 +354,10 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const nightStart = snapshotTrust(fresh);
     const fire = freshFire(85);
     mglLive.closest = 999;
+    // M1.8: между титулом и первой ночью — экран обета у Столпа.
+    // Свежее состояние готово, но сейв ещё не пишется: обет не произнесён.
     set({
-      screen: "play",
+      screen: "oath",
       state: fresh,
       night: 1,
       doneToday: [],
@@ -366,7 +371,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       drawer: null,
       pultOpen: false,
       ending: null,
-      intro: NIGHT_TITLES[1],
+      intro: null,
       nightSummary: null,
       nightStart,
       moves: get().moves + 1,
@@ -377,7 +382,20 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       dayDone: [],
       dayWood: 0,
     });
-    persist(fresh, 1, [], nightStart, fire);
+  },
+
+  /** M1.8 «Обет»: клятва произнесена (или промолчана) — первая ночь начинается */
+  oathSay: (hesitated) => {
+    if (get().screen !== "oath") return;
+    const base = get().state;
+    const st = hesitated
+      ? { ...base, flags: { ...base.flags, oath_hesitated: true } }
+      : base;
+    // звуковая арка: ворон отвечает на обет; на молчание отвечает Мгла
+    if (hesitated) sfxWhisper();
+    else sfxCaw();
+    set({ screen: "play", state: st, intro: NIGHT_TITLES[1] });
+    persist(st, 1, [], get().nightStart, get().fire);
     set({ hasSave: true });
   },
 
@@ -501,6 +519,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
 
     const before = snapshotTrust(state);
     const phased = withPhase(state, activeEvent.day, activeEvent.phase);
+    // M1.8: звуковая арка развязки — ворон каркает в момент, когда выбор сделан
+    if (activeEvent.id === FINALE_EVENT_ID) sfxCaw();
     const next = applyChoice(phased, choice);
     const diff = trustDiff(before, next);
     get().pushFloaters(diff);

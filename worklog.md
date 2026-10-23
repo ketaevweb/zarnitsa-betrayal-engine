@@ -129,3 +129,26 @@ Work Log:
 Stage Summary:
 - M1.7 closed: the betrayal engine remembers its own runs — each denouement becomes a line in the meta-chronicle on the title screen; players now see their past oaths (and knives) before entering the Mist again.
 - Push to GitHub after commit (origin/main → M1.7).
+
+---
+
+Task ID: 13 (session 8, continued)
+Agent: main
+Task: M1.8 "The Oath" (intro ritual + hesitation echo + finale caw) + classic-shell chronicle fix
+
+Work Log:
+- Session start: verified GitHub state — M1.7 (8584c5b) was already pushed; local ref was stale (ahead 2), fixed via fetch to origin/main. Worktree clean.
+- M1.8 implemented:
+  - store.ts: Screen gains "oath"; start() now lands on the oath screen (fresh state prepared, NO save written yet — the oath is not sworn); new action oathSay(hesitated) — sets flags.oath_hesitated on silence, sfxWhisper on silence / sfxCaw on a spoken oath ("the omen answers the vow"), then screen play + NIGHT_TITLES[1] + persist + hasSave. Sounds arch: the crow caws at the finale choice moment too (choose() checks FINALE_EVENT_ID → sfxCaw).
+  - scenario3d.ts: makeFinaleEvent — if flags.oath_hesitated, Мгла recalls the silence at the Pillar ("Клятва дрожала с первого слова") before the crow line.
+  - chronicle.ts: ChronicleEntry.oath — the meta-chronicle marks the trembling oath.
+  - OathScreen.tsx (new): full-screen ritual before night 1 — overline "СТОЛП ПРИСЯГИ · ПЕРЕД ПЕРВОЙ НОЧЬЮ", four gold oath lines fading in sequentially, italic closing "Это клятва. Пусть проверит её Мгла.", divider growth; main button "Произнести обет" (Enter/Space) and a quiet "…молчать" link; silence shows "Ты промолчал. Ночь заметила. Летопись тоже." for 1.7 s, then starts the run with the flag. Footnote: "то, что прозвучало в тишине, тоже [помнят]".
+  - Hud.tsx: OathScreen wired at screen === "oath"; TopBar/Pult/LogTicker/Vignette guarded for the new screen; ChroniclePanel shows ⸸ (dark red, tooltip "обет был произнесён молчанием") for entries with oath; version M1.8 «Обет».
+  - ClassicGame.tsx: classic shell now calls recordRun on finish too (chronicle is shared across shells — gap from M1.7 closed).
+  - simulate3d.ts: window/localStorage shim for bun + section 7 — spoken oath is silent in the finale; the silence returns ("дрожала") before the crow line; chronicle marks oath=true/false correctly.
+- Static checks: tsc (src + scripts) clean; eslint clean (fixed one unused eslint-disable in OathScreen); simulate3d ALL CHECKS PASSED (sections 1–7).
+- Browser verification (all green): title shows «M1.8 «Обет»»; "Выйти в ночь" → oath screen with all four lines, NO save in localStorage before swearing — shot_m18_oath.png; "Произнести обет" → night 1 (screen play, no flag, save written); reload → "…молчать" → "Ты промолчал" notice — shot_m18_silence.png — then screen play with flags.oath_hesitated=true; jump to night III (startNight, fuel 90, finale hook) → finale text contains "дрожала" and the crow line follows it — shot_m18_finale_hes.png; choose(0) hold → "НОЖ ПОД КЛЯТВОЙ" — shot_m18_title_end.png; restart to title → chronicle panel shows the entry with the ⸸ mark and whisper count — shot_m18_chronicle_oath.png; console clean (only the old THREE.Clock deprecation). Test data cleared, browser closed.
+
+Stage Summary:
+- M1.8 closed: the game finally speaks its own name — the oath is spoken (or swallowed) at the Pillar before night one, and the engine of betrayal keeps the receipt: Мгла quotes the silence in the denouement, the chronicle stamps the trembling oath with ⸸.
+- Push to GitHub after commit (origin/main → M1.8).
