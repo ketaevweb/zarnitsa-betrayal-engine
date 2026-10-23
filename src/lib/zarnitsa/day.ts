@@ -185,14 +185,31 @@ const WALKED_ANY: Record<string, string> = {
   miluta: "Летопись дорог осталась без хозяйки: страницы дороже, чем кто-то умел их держать.",
 };
 
+/** тень обета (M1.9): отряд стоял у Столпа — и слышал, сколько в клятве
+ *  было слов, а сколько тишины. Открывашка только первого утра
+ *  (день после ночи I); уход на рассвете сильнее — он забирает человека. */
+const OATH_HESITATED_OPENING: Record<string, string> = {
+  gavrila:
+    "Гаврила встречает тебя молча, но оберег шепчет громче обычного: он стоял у Столпа — он слышал, сколько в твоей клятве было слов, а сколько тишины.",
+  khodata:
+    "Ходата кивает тебе чуть медленнее обычного: тот, кто носит знамя присяги, умеет считать слова — а вчера у Столпа их было на одну клятву меньше.",
+  miluta:
+    "Милута держит летопись открытой на странице присяги и не решается записать вчерашний обет: у Столпа он был произнесён молчанием.",
+  ratmir:
+    "Ратмир водит клинком по кругу и не зовёт тебя к камню: на юге молчание у Столпа считали дурным знаком — и он не знает, верить ли северным дорогам.",
+};
+
 /** утренний разговор со спутником — событие на лету (фаза «Утро»);
  *  echo (M1.3) — шёпоты прошлой ночи: первая фраза сцены их помнит;
- *  walked (M1.6) — ушедшие на рассвете: разговор начинается с них */
+ *  walked (M1.6) — ушедшие на рассвете: разговор начинается с них;
+ *  oathHesitated (M1.9) — обет у Столпа был произнесён молчанием:
+ *  в первое утро (ночь I) открывашка — тень обета */
 export function makeDayTalk(
   cid: string,
   night: number,
   echo?: EchoEntry[],
   walked: string[] = [],
+  oathHesitated = false,
 ): EventDef | null {
   const def = COMPANION_BY_ID[cid];
   const talk = DAY_TALKS[cid];
@@ -201,10 +218,12 @@ export function makeDayTalk(
   const day = night + 1;
   // эхо ухода (M1.6) сильнее эха шёпотов: рассвет забрал человека — об этом говорят первыми
   const walkedFirst = walked.length ? WALKED_TALK_OPENING[walked[0]!]?.[cid] ?? WALKED_ANY[walked[0]!] : null;
+  // тень обета (M1.9): свежее шёпотов, но слабее ухода — только первое утро
+  const oathOpening = oathHesitated && night === 1 ? OATH_HESITATED_OPENING[cid] ?? null : null;
   const hit = echo?.find((e) => e.cid === cid);
   const echoOpening =
     hit && ECHO_TALK_OPENING[cid] ? ECHO_TALK_OPENING[cid][hit.spared ? "spared" : "scorned"] : null;
-  const opening = walkedFirst ?? echoOpening;
+  const opening = walkedFirst ?? oathOpening ?? echoOpening;
   return {
     id: `dtalk_${cid}_d${day}`,
     day,

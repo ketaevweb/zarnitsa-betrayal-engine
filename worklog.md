@@ -152,3 +152,22 @@ Work Log:
 Stage Summary:
 - M1.8 closed: the game finally speaks its own name — the oath is spoken (or swallowed) at the Pillar before night one, and the engine of betrayal keeps the receipt: Мгла quotes the silence in the denouement, the chronicle stamps the trembling oath with ⸸.
 - Push to GitHub after commit (origin/main → M1.8).
+
+---
+
+Task ID: 14 (session 8, continued)
+Agent: main
+Task: M1.9 "Shadow of the Oath" (the first morning remembers the silence at the Pillar)
+
+Work Log:
+- M1.9 implemented — the oath arc now spans the whole run: обет → утро → развязка → летопись.
+  - day.ts: OATH_HESITATED_OPENING — four unique morning openings (gavrila hears how many words were in the vow vs silence; khodata counts words like a banner-bearer; miluta can't write the oath down; ratmir's southern roads call silent oaths a bad omen). makeDayTalk gains oathHesitated param; priority: walked-echo > oath-shadow > whisper-echo; the shadow applies only to the first morning (night === 1).
+  - store.ts: openDayTalk passes oathHesitated = (night === 1 && flags.oath_hesitated).
+  - Hud.tsx: version M1.9 «Тень обета».
+  - simulate3d.ts: section 8 (9 checks) — all four companions open with the Pillar line; second morning forgets; shadow beats whisper-echo; walked beats shadow; the walked one stays silent; clean oath → old opening.
+- Static checks: tsc + eslint clean; simulate3d ALL CHECKS PASSED (sections 1–8).
+- Browser verification (all green): silence path → day II forced → Gavrila's talk opens with "Гаврила встречает тебя молча, но оберег шепчет громче обычного…" (shot_m19_oath_echo.png); sworn path → same talk opens with the standard угли line; console clean. Test data cleared, browser closed.
+
+Stage Summary:
+- M1.9 closed: the trembling oath now haunts the camp's first morning — the squad stood at the Pillar and heard the silence; the betrayal engine keeps every receipt of weakness.
+- Push to GitHub after commit (origin/main → M1.9).

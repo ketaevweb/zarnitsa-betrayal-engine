@@ -722,7 +722,9 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const walked = Object.values(state.party)
       .filter((cs) => cs.walkedAtDawn)
       .map((cs) => cs.id);
-    const ev = makeDayTalk(cid, get().night, whisperEcho, walked);
+    // M1.9: тень обета — только первое утро (день после ночи I)
+    const oathHesitated = get().night === 1 && state.flags["oath_hesitated"] === true;
+    const ev = makeDayTalk(cid, get().night, whisperEcho, walked, oathHesitated);
     if (!ev || dayDone.includes(ev.id)) return;
     sfxReveal();
     set({ screen: "event", activeEvent: ev, talkMenu: null });

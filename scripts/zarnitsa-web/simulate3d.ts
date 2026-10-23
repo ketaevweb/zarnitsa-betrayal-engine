@@ -488,6 +488,44 @@ assert(
 const recClean = recordRun(finBase, buildEnding(finBase));
 assert(recClean !== null && recClean.oath === false, "произнесённый обет не помечен");
 
+/* --- 8. ТЕНЬ ОБЕТА (M1.9): первое утро помнит молчание у Столпа --- */
+console.log("\n8) ТЕНЬ ОБЕТА: отряд слышал, сколько в клятве было тишины");
+
+// а. дрожавшая клятва — открывашка первого утра у всех четверых
+for (const cid of ["gavrila", "khodata", "miluta", "ratmir"]) {
+  const ev = makeDayTalk(cid, 1, [], [], true);
+  assert(
+    ev !== null && ev.text[0]!.includes("Столпа"),
+    `${cid}: первое утро начинается с тени обета`,
+  );
+}
+// б. второе утро тень обета не помнит — там свои эха
+const evD2 = makeDayTalk("gavrila", 2, [], [], true);
+assert(
+  evD2 !== null && !evD2.text[0]!.includes("Столпа"),
+  "во второе утро тень обета угасает",
+);
+// в. тень обета сильнее эха шёпотов
+const evOathEcho = makeDayTalk("gavrila", 1, [{ cid: "gavrila", spared: false, tag: "cowardice" }], [], true);
+assert(
+  evOathEcho !== null && evOathEcho.text[0]!.includes("Столпа"),
+  "тень обета стоит выше эха шёпотов",
+);
+// г. уход на рассвете сильнее тени обета
+const evOathWalk = makeDayTalk("gavrila", 1, [], ["ratmir"], true);
+assert(
+  evOathWalk !== null && evOathWalk.text[0]!.includes("Ратмир"),
+  "эхо ухода сильнее тени обета",
+);
+// д. ушедший молчит даже при дрожавшем обете
+assert(makeDayTalk("ratmir", 1, [], ["ratmir"], true) === null, "ушедший не говорит и в тени обета");
+// е. произнесённый обет — утро как раньше
+const evClean = makeDayTalk("gavrila", 1, [{ cid: "gavrila", spared: false, tag: "cowardice" }], [], false);
+assert(
+  evClean !== null && evClean.text[0]!.includes("осекается"),
+  "без молчания открывашка — прежняя (эхо шёпотов)",
+);
+
 console.log("\n================================");
 if (failures.length === 0) {
   console.log("ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ✓");
