@@ -688,11 +688,15 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     persist(get().state, get().night, get().doneToday, get().nightStart, get().fire, { done, wood }, get().whisperDone, get().whisperEcho);
   },
 
-  /** утренний разговор со спутником (M1.1); текст помнит эхо ночи (M1.3) */
+  /** утренний разговор со спутником (M1.1); текст помнит эхо ночи (M1.3)
+   *  и рассветный уход (M1.6) */
   openDayTalk: (cid) => {
-    const { screen, dayDone, whisperEcho } = get();
+    const { screen, dayDone, whisperEcho, state } = get();
     if (screen !== "camp") return;
-    const ev = makeDayTalk(cid, get().night, whisperEcho);
+    const walked = Object.values(state.party)
+      .filter((cs) => cs.walkedAtDawn)
+      .map((cs) => cs.id);
+    const ev = makeDayTalk(cid, get().night, whisperEcho, walked);
     if (!ev || dayDone.includes(ev.id)) return;
     sfxReveal();
     set({ screen: "event", activeEvent: ev, talkMenu: null });

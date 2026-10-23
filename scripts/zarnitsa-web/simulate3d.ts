@@ -28,6 +28,7 @@ import {
   type TalkAction,
 } from "../../src/lib/zarnitsa/scenario3d";
 import { AMBIENT_EVENTS } from "../../src/lib/zarnitsa/ambient3d";
+import { makeDayTalk } from "../../src/lib/zarnitsa/day";
 import type { Choice, GameState, TagId } from "../../src/lib/zarnitsa/types";
 
 /* ---------- утилиты ---------- */
@@ -404,6 +405,42 @@ assert(
   `титул чистого прогона: ${kindEnd.title}`,
 );
 console.log(`    титул доброго прогона: ${kindEnd.title}`);
+
+/* --- 6. ЭХО УХОДА (M1.6): оставшиеся говорят об ушедшем на рассвете --- */
+console.log("\n6) ЭХО УХОДА: утренние разговоры начинаются с ушедшего");
+
+const talkWalked = ["ratmir"];
+// а. ушедший сам не говорит
+assert(
+  makeDayTalk("ratmir", 1, [], talkWalked) === null,
+  "ушедший на рассвете не имеет утреннего разговора",
+);
+// б. уникальные реплики оставшихся: первая фраза — об ушедшем
+for (const cid of ["gavrila", "khodata", "miluta"]) {
+  const ev = makeDayTalk(cid, 1, [], talkWalked);
+  assert(
+    ev !== null && ev.text[0]!.includes("Ратмир"),
+    `${cid}: первая фраза разговора — о Ратмире`,
+  );
+}
+// в. эхо ухода сильнее эха шёпотов: принятый шёпот не вытесняет уход
+const evBoth = makeDayTalk("gavrila", 1, [{ cid: "gavrila", spared: false, tag: "cowardice" }], talkWalked);
+assert(
+  evBoth !== null && evBoth.text[0]!.includes("Ратмир"),
+  "эхо ухода стоит первым даже при эхе шёпотов",
+);
+// г. без ушедших — эхо шёпотов как раньше
+const evEcho = makeDayTalk("gavrila", 1, [{ cid: "gavrila", spared: false, tag: "cowardice" }], []);
+assert(
+  evEcho !== null && evEcho.text[0]!.includes("осекается"),
+  "без ухода открывашка — прежняя (эхо шёпотов)",
+);
+// д. несколько ушедших — разговор о первом из списка
+const evMulti = makeDayTalk("miluta", 1, [], ["ratmir", "gavrila"]);
+assert(
+  evMulti !== null && evMulti.text[0]!.includes("Ратмир"),
+  "при нескольких ушедших говорят о первом",
+);
 
 console.log("\n================================");
 if (failures.length === 0) {

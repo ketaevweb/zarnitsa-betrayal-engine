@@ -12,6 +12,7 @@ import { COMPANIONS } from "@/lib/zarnitsa/data";
 import { WATCHER_ANGLES, dreadLevel, watcherTargetR, WOOD_PILES } from "@/lib/zarnitsa/camp3d";
 import { BRUSHWOOD_SPOTS } from "@/lib/zarnitsa/day";
 import { companionLive } from "./campLife";
+import { crowLive } from "./Crow";
 
 const FIELD = 38; // радиус поляны
 const SIZE = 190; // px канваса
@@ -114,6 +115,24 @@ export function Minimap() {
           ctx.strokeStyle = "rgba(232,224,208,0.65)";
           ctx.lineWidth = 1;
           ctx.stroke();
+          ctx.lineWidth = 1.5;
+        }
+        // ворон-знамение (M1.6): живая позиция из сцены, ободок пульсирует
+        if (crowLive.x || crowLive.z) {
+          const cx = px(crowLive.x);
+          const cz = pz(crowLive.z);
+          const pulse = 0.35 + 0.3 * Math.sin(performance.now() / 420);
+          ctx.beginPath();
+          ctx.arc(cx, cz, 2.8, 0, Math.PI * 2);
+          ctx.fillStyle = "#14121a";
+          ctx.fill();
+          ctx.strokeStyle = `rgba(201,162,39,${pulse.toFixed(3)})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(cx - 0.7, cz - 0.5, 0.55, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(216,210,192,0.9)";
+          ctx.fill();
           ctx.lineWidth = 1.5;
         }
       }

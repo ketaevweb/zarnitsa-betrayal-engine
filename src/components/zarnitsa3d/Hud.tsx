@@ -27,8 +27,8 @@ import {
 } from "@/lib/zarnitsa/audio";
 import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
 import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
-import { EndScreen } from "@/components/zarnitsa/EndScreen";
 import { Minimap } from "./Minimap";
+import { EndingTitle } from "./EndingTitle";
 import { touchInput } from "./campLife";
 
 const LOG_CLASS: Record<string, string> = {
@@ -525,7 +525,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.5 «Ворон на Столпе»
+        3D-прототип · M1.6 «Память рассвета»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -1217,11 +1217,8 @@ export function Hud() {
   const activeEventId = useZarnitsa((s) => s.activeEvent?.id);
 
   if (screen === "end" && ending) {
-    return (
-      <div className="absolute inset-0 z-30 overflow-y-auto">
-        <EndScreen state={state} ending={ending} onRestart={toTitle} />
-      </div>
-    );
+    // M1.6: сначала полноэкранный титул развязки, по клику — летопись
+    return <EndingTitle state={state} ending={ending} onRestart={toTitle} />;
   }
 
   return (

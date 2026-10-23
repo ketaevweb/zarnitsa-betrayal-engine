@@ -89,3 +89,25 @@ Work Log:
 Stage Summary:
 - M1.5 closed: the omen crow completes its arc (forest edge → camp → Pillar cap), betrayal now has a pre-echo at dawn (stage IV leaves before the oath), and every run ends under its own title.
 - Next ideas: M1.6 — дневной след ворона (ворон на мини-карте), реплики отряда об ушедшем на рассвете (эхо ухода в dtalk), титульная заставка концовки (полноэкранный титул перед летописью).
+
+---
+
+Task ID: 11 (session 8)
+Agent: main
+Task: M1.6 "Dawn Memory" (crow on the minimap + walked-away talk openings + ending title gate)
+
+Work Log:
+- GitHub state verified first: origin/main = e166652 (M1.5 push landed in session 7); token still valid, nothing to push.
+- M1.6 implemented:
+  - day.ts: WALKED_TALK_OPENING (per walked companion × remaining talker, 12 unique lines) + WALKED_ANY fallback; makeDayTalk(cid, night, echo?, walked = []) — walked-echo overrides whisper-echo as the opening line; a walked companion returns null (no talk).
+  - store.ts: openDayTalk collects walked ids from state.party.walkedAtDawn and passes them to makeDayTalk.
+  - Minimap.tsx: crow marker in day mode — dark dot from live crowLive position, pulsing gold rim + pale eye-dot; drawn only when the bird is in camp (crowLive.x/z non-zero).
+  - EndingTitle.tsx (new): full-screen ending title gate before the chronicle — "РАЗВЯЗКА" overline, ending title with per-ending palette (НОЖ → ember red, ЖИВЫМИ → moss green, ТРЕЩИНАХ/ДЕРЖИТ → gold, МГЛОЙ → cold steel), letter-spacing collapse animation, divider growth, subtitle fade-in; click / Enter / Space opens EndScreen (sfxOpen). Wired into Hud.tsx (replaces direct EndScreen render; EndScreen import moved to the new component).
+  - Hud.tsx: version "3D-прототип · M1.6 «Память рассвета»".
+  - simulate3d.ts: section 6 — walked companion has no morning talk; remaining three open with the walked one's name; walked-echo wins over whisper-echo; no walked → old whisper opening; several walked → first in list.
+- Static checks: tsc (src + scripts/zarnitsa-web) clean; eslint clean; simulate3d ALL CHECKS PASSED (sections 1–6).
+- Browser verification (all green): forced Ratmir dawn walk (walkedAtDawn via state) → camp day II with 6/7 tasks and 3 party cards; minimap shows the crow marker NE at the forest edge (crowLive 21.0, −15.0) — shot_m16_map_crow.png; Gavrila day talk opens with "…будто Ратмир может услышать…" — shot_m16_dtalk_walked.png; Miluta opens with her ledger-south line; finale (finale hook, e12) → hold → end → title gate "НОЖ ПОД КЛЯТВОЙ" in ember palette — shot_m16_title_gate.png; click → chronicle opens — shot_m16_chronicle.png; console clean (only the old THREE.Clock deprecation). Test save cleared, browser closed.
+
+Stage Summary:
+- M1.6 closed: dawn walk-away now echoes through the morning (the squad speaks of the one who left), the omen bird has a day-phase footprint on the map, and every run ends under its own full-screen title before the chronicle.
+- Push to GitHub after commit (origin/main → M1.6).
