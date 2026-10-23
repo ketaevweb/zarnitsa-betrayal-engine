@@ -30,6 +30,7 @@ import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
 import { Minimap } from "./Minimap";
 import { EndingTitle, titleTone } from "./EndingTitle";
 import { OathScreen } from "./OathScreen";
+import { PauseOverlay } from "./PauseOverlay";
 import { touchInput } from "./campLife";
 import { getChronicle, getChronicleServer, subscribeChronicle, type ChronicleRow } from "@/lib/zarnitsa/chronicle";
 
@@ -240,6 +241,13 @@ function TopBar() {
           className="hidden rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2] sm:inline"
         >
           летопись
+        </button>
+        <button
+          onClick={() => useZarnitsa.getState().togglePause()}
+          className="hidden rounded-sm border border-[#32233a] px-2 py-1 text-[11px] text-[#9a8f96] hover:border-[#c9a227] hover:text-[#d6cfc2] sm:inline"
+          title="Пауза (Esc / P) — мир замрёт: огонь не тлеет, Мгла не дышит"
+        >
+          ‖ пауза
         </button>
         <SoundButton />
         <button
@@ -602,7 +610,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.9 «Тень обета»
+        3D-прототип · M1.10 «Пауза»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -1272,6 +1280,16 @@ function TouchControls() {
             ᚱ
           </button>
           <button
+            onClick={() => {
+              sfxClick();
+              useZarnitsa.getState().togglePause();
+            }}
+            className="pointer-events-auto h-11 w-11 touch-none rounded-full border border-[#32233a] bg-black/45 text-[11px] text-[#9a8f96] backdrop-blur-sm active:border-[#c9a227]"
+            aria-label="пауза"
+          >
+            ‖
+          </button>
+          <button
             onClick={() => useZarnitsa.getState().toggleMap()}
             className="pointer-events-auto h-11 w-11 touch-none rounded-full border border-[#32233a] bg-black/45 text-[11px] text-[#9a8f96] backdrop-blur-sm active:border-[#c9a227]"
             aria-label="карта"
@@ -1327,6 +1345,7 @@ export function Hud() {
       <TouchControls />
       <JournalOverlay />
       <WhisperOverlay />
+      <PauseOverlay />
       {screen === "title" && <TitleScreen />}
       {screen === "oath" && <OathScreen />}
       {screen === "event" && activeEventId && <EventModal key={activeEventId} />}

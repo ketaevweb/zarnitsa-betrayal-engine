@@ -171,3 +171,24 @@ Work Log:
 Stage Summary:
 - M1.9 closed: the trembling oath now haunts the camp's first morning — the squad stood at the Pillar and heard the silence; the betrayal engine keeps every receipt of weakness.
 - Push to GitHub after commit (origin/main → M1.9).
+
+---
+
+Task ID: 15 (session 8, continued)
+Agent: main
+Task: M1.10 «Пауза» (pause overlay + frozen world + sound gate)
+
+Work Log:
+- Session start: git state verified — M1.9 (56bdddb) was already committed AND pushed (previous session cut right after the push); origin/main in sync; worktree held only 644→755 mode noise from a container recycle (restored to 644, zero content changes).
+- M1.10 implemented:
+  - store.ts: paused: boolean + togglePause() — only on play/camp screens; opening closes map/journal/pult/drawer and quiets the heartbeat (setHeartbeat(0)); paused: false reset in start/oathSay/toTitle/resumeRun; tickFire gated on paused; interact() guarded while paused.
+  - GameCanvas.tsx: Canvas frameloop={paused ? "never" : "always"} — one gate stops every useFrame (fire, mist ring, companions, crow, particles, camera); the last frame stays on the canvas behind the overlay. Keydown: Escape/KeyP → togglePause; while paused, other game keys are swallowed (E/M/J never reach the game).
+  - PauseOverlay.tsx (new): full-screen z-[60] panel — «ПЕРЕДЫШКА У ОГНЯ» / «Пауза», night/day flavor line, buttons: «▶ Продолжить (Esc / P)», «звук: включён/заглушён» (shared audioToggle with localStorage persistence), «⌂ Выйти в титул» (save kept — «Продолжить поход» works from the title); footer hint. Sound state syncs on open via render-time state adjustment (React canon instead of setState-in-effect).
+  - Hud.tsx: TopBar gains «‖ пауза» (hidden on mobile — TouchControls cover touch), TouchControls gains a round ‖ button; PauseOverlay wired at the Hud root; version M1.10 «Пауза».
+  - simulate3d.ts: localStorage shim extended — globalThis.localStorage is now set too (store's persist/readSave call bare localStorage, which doesn't exist under node/tsx; persist's try/catch silently swallowed the ReferenceError — that's why the resumeRun check failed on the first run); section 9 «ПАУЗА» (10 checks): guards on title/oath, opens in play, fuel frozen while paused, ticks again after resume, toTitle clears pause + save survives, resumeRun starts clean.
+- Static checks: tsc + eslint clean (fixed: setState-in-effect error → render-time adjustment; unused useEffect import removed; debug script deleted).
+- Browser verification (all green): title «M1.10 «Пауза»»; oath → play; Escape opens the overlay (shot_m110_pause.png); fuel frozen 83.3 → 83.3 over 3.5 s under pause; sound toggle in the pause flips the label and writes zarnitsa3d_audio 0/1; Esc resumes — fuel decays again (83.08 → 82.27 per 3 s); TopBar «‖ пауза» pauses too; «Выйти в титул» from pause → title with hasSave=true → «Продолжить поход» → play, no pause (shot_m110_resume.png); camp-screen pause verified via store; KeyP pauses as well; touch ‖ button shares the verified handler (agent-browser cannot emulate pointer:coarse, live render check skipped); console clean (only the old THREE.Clock deprecation). Test data cleared, browser closed.
+
+Stage Summary:
+- M1.10 closed: the game finally has a pause — Esc/P freezes the whole world through a single gate (frameloop never), the overlay offers continue / mute / exit-to-title, and the run survives in the save.
+- Push to GitHub after commit (origin/main → M1.10).

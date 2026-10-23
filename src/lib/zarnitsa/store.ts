@@ -41,6 +41,7 @@ import {
 } from "./camp3d";
 import {
   audioStart,
+  setHeartbeat,
   sfxClick,
   sfxCaw,
   sfxDeltaDown,
@@ -241,6 +242,8 @@ interface ZarnitsaStore {
   dayDone: string[];
   /** запас хвороста: +топливо к завтрашнему костру */
   dayWood: number;
+  /** M1.10 «Пауза»: мир замер (frameloop never) — только в ночи и утром */
+  paused: boolean;
 
   start: () => void;
   /** M1.8: произнести обет у Столпа (hesitated — промолчал, Мгла заметила) */
@@ -270,6 +273,8 @@ interface ZarnitsaStore {
   feedFire: () => void;
   setHint: (text: string | null) => void;
   toggleJournal: () => void;
+  /** M1.10: пауза — Esc/P; мир стоит, пока игрок дышит */
+  togglePause: () => void;
   /** открыть шёпот Мглы (M1.0) */
   openWhisper: (id: string) => void;
   /** принять или отвергнуть шёпот */
@@ -347,6 +352,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   dayMode: false,
   dayDone: [],
   dayWood: 0,
+  paused: false,
 
   start: () => {
     audioStart();
@@ -381,6 +387,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       dayMode: false,
       dayDone: [],
       dayWood: 0,
+      paused: false,
     });
   },
 
@@ -394,7 +401,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     // звуковая арка: ворон отвечает на обет; на молчание отвечает Мгла
     if (hesitated) sfxWhisper();
     else sfxCaw();
-    set({ screen: "play", state: st, intro: NIGHT_TITLES[1] });
+    set({ screen: "play", state: st, intro: NIGHT_TITLES[1], paused: false });
     persist(st, 1, [], get().nightStart, get().fire);
     set({ hasSave: true });
   },
@@ -410,6 +417,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       talkMenu: null,
       journalOpen: false,
       hint: null,
+      paused: false,
     }),
 
   /** продолжить сохранённый прогон */
@@ -443,6 +451,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       whisperDone: save.wh ?? [],
       whisperEcho: save.echo ?? [],
       dawnWalked: [],
+      paused: false,
     });
   },
 
@@ -451,7 +460,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   /** клавиша E: маркер, спутник, костёр или поленница (днём — дела обхода) */
   interact: () => {
     const { screen, nearest, whisper } = get();
-    if ((screen !== "play" && screen !== "camp") || !nearest || whisper) return;
+    if ((screen !== "play" && screen !== "camp") || !nearest || whisper || get().paused) return;
     if (screen === "camp") {
       // дневной обход: разговоры, хворост; костёр дремлет
       if (nearest.kind === "companion") get().openDayTalk(nearest.id);
@@ -732,7 +741,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
 
   tickFire: (dt) => {
     const s = get();
-    if (s.screen !== "play" || s.journalOpen) return;
+    if (s.screen !== "play" || s.journalOpen || s.paused) return;
     const f = s.fire;
     if (f.fuel <= 0) return;
     const fuel = Math.max(0, f.fuel - dt * FUEL_DECAY);
@@ -781,6 +790,20 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const s = get().screen;
     if (s !== "play" && s !== "camp") return;
     set({ journalOpen: !get().journalOpen });
+  },
+
+  /** M1.10 «Пауза»: мир стоит на дыхании — огонь не тлеет, Мгла не дышит.
+   *  Открывается только в ночи и в утреннем обходе; заодно закрывает оверлеи. */
+  togglePause: () => {
+    const s = get();
+    if (s.screen !== "play" && s.screen !== "camp") return;
+    if (s.paused) {
+      sfxClick();
+      set({ paused: false });
+    } else {
+      setHeartbeat(0); // сердце отряда затихает, пока игрок смотрит на огонь
+      set({ paused: true, mapOpen: false, journalOpen: false, pultOpen: false, drawer: null });
+    }
   },
 
   openWhisper: (id) => {

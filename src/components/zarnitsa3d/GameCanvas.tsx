@@ -79,6 +79,9 @@ function SkyLight() {
 
 export default function GameCanvas() {
   const isDay = useZarnitsa((s) => s.screen) === "camp";
+  // M1.10 «Пауза»: на паузе фрейм-луп замирает — последнéй кадр остаётся на холсте,
+  // огонь не тлеет, Мгла не дышит, отряд стоит (useFrame не зовётся вообще)
+  const paused = useZarnitsa((s) => s.paused);
 
   useEffect(() => {
     // dev-параметр: /?tp=e13 — телепорт к маркеру, /?tp=gavrila — к спутнику,
@@ -128,15 +131,22 @@ export default function GameCanvas() {
         e.preventDefault();
       }
       if (e.repeat) return;
+      const z = useZarnitsa.getState();
+      // M1.10: Esc / P — передышка; на паузе игру не трогаем (кроме самой паузы)
+      if (e.code === "Escape" || e.code === "KeyP") {
+        z.togglePause();
+        return;
+      }
+      if (z.paused) return;
       keys.add(e.code);
       if (e.code === "KeyE") {
-        useZarnitsa.getState().interact();
+        z.interact();
       }
       if (e.code === "KeyM") {
-        useZarnitsa.getState().toggleMap();
+        z.toggleMap();
       }
       if (e.code === "KeyJ") {
-        useZarnitsa.getState().toggleJournal();
+        z.toggleJournal();
       }
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
@@ -154,6 +164,7 @@ export default function GameCanvas() {
   return (
     <Canvas
       dpr={[1, 1.75]}
+      frameloop={paused ? "never" : "always"}
       camera={{ fov: 55, position: [0, 16, 20], near: 0.1, far: 240 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {

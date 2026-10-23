@@ -30,26 +30,33 @@ import {
 import { AMBIENT_EVENTS } from "../../src/lib/zarnitsa/ambient3d";
 import { makeDayTalk } from "../../src/lib/zarnitsa/day";
 import { recordRun } from "../../src/lib/zarnitsa/chronicle";
+import { useZarnitsa } from "../../src/lib/zarnitsa/store";
 import type { Choice, GameState, TagId } from "../../src/lib/zarnitsa/types";
 
-/* chronicle.ts пишет через window.localStorage — в bun его нет,
- * подставляем минимальный шим (проверки летописи M1.8) */
+/* chronicle.ts пишет через window.localStorage, а persist/readSave в store.ts —
+ * через голый localStorage. В node (tsx) нет ни того, ни другого —
+ * подставляем один шим в оба места (проверки летописи M1.8 + пауза M1.10) */
 if (typeof (globalThis as { window?: unknown }).window === "undefined") {
   const mem = new Map<string, string>();
-  (globalThis as unknown as { window: object }).window = {
-    localStorage: {
-      getItem: (k: string) => mem.get(k) ?? null,
-      setItem: (k: string, v: string) => {
-        mem.set(k, v);
-      },
-      removeItem: (k: string) => {
-        mem.delete(k);
-      },
+  const ls = {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      mem.set(k, v);
     },
+    removeItem: (k: string) => {
+      mem.delete(k);
+    },
+    clear: () => {
+      mem.clear();
+    },
+  };
+  (globalThis as unknown as { window: object }).window = {
+    localStorage: ls,
     dispatchEvent: () => true,
     addEventListener: () => {},
     removeEventListener: () => {},
   };
+  (globalThis as unknown as { localStorage: unknown }).localStorage = ls;
 }
 
 /* ---------- утилиты ---------- */
@@ -525,6 +532,58 @@ assert(
   evClean !== null && evClean.text[0]!.includes("осекается"),
   "без молчания открывашка — прежняя (эхо шёпотов)",
 );
+
+/* --- 9. ПАУЗА (M1.10): Esc замирает мир — огонь не тлеет, Мгла не дышит --- */
+console.log("\n9) ПАУЗА: мир стоит на дыхании игрока");
+
+// а. на титуле пауза не открывается
+useZarnitsa.setState({ screen: "title", paused: false });
+useZarnitsa.getState().togglePause();
+assert(!useZarnitsa.getState().paused, "на титуле пауза не открывается");
+
+// б. на экране обета — тоже (обет не пережить тишиной меню)
+useZarnitsa.getState().start();
+assert(useZarnitsa.getState().screen === "oath", "start ведёт на экран обета");
+useZarnitsa.getState().togglePause();
+assert(!useZarnitsa.getState().paused, "на обете пауза не открывается");
+
+// в. в ночи — открывается, топливо замирает
+useZarnitsa.getState().oathSay(false);
+assert(
+  useZarnitsa.getState().screen === "play" && !useZarnitsa.getState().paused,
+  "обет произнесён — ночь начинается без паузы",
+);
+useZarnitsa.getState().togglePause();
+assert(useZarnitsa.getState().paused, "Esc открывает паузу в ночи");
+const fuelFrozen = useZarnitsa.getState().fire.fuel;
+useZarnitsa.getState().tickFire(10);
+assert(useZarnitsa.getState().fire.fuel === fuelFrozen, "на паузе топливо не тлеет");
+
+// г. продолжить — мир дышит снова
+useZarnitsa.getState().togglePause();
+assert(!useZarnitsa.getState().paused, "повторный Esc снимает паузу");
+useZarnitsa.getState().tickFire(0.5);
+assert(
+  useZarnitsa.getState().fire.fuel < fuelFrozen,
+  "после паузы огонь снова тлеет",
+);
+
+// д. выход в титул из паузы: пауза снята, сейв жив, продолжение чистое
+useZarnitsa.getState().togglePause();
+useZarnitsa.getState().toTitle();
+assert(
+  useZarnitsa.getState().screen === "title" && !useZarnitsa.getState().paused,
+  "выход в титул снимает паузу",
+);
+useZarnitsa.getState().resumeRun();
+assert(
+  useZarnitsa.getState().screen === "play" && !useZarnitsa.getState().paused,
+  "продолжение похода с титула начинается без паузы",
+);
+
+// убрать тестовый сейв, чтобы не мешать следующим прогонам
+useZarnitsa.getState().toTitle();
+window.localStorage.clear();
 
 console.log("\n================================");
 if (failures.length === 0) {
