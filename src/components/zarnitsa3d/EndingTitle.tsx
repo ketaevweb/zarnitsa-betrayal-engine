@@ -13,8 +13,8 @@ import type { GameState } from "@/lib/zarnitsa/types";
 import { EndScreen } from "@/components/zarnitsa/EndScreen";
 import { sfxOpen } from "@/lib/zarnitsa/audio";
 
-/** палитра титула по характеру концовки */
-function titleTone(title: string): { main: string; glow: string; line: string } {
+/** палитра титула по характеру концовки (переиспользуется летописью походов) */
+export function titleTone(title: string): { main: string; glow: string; line: string } {
   if (title.includes("НОЖ")) return { main: "#d95f3b", glow: "rgba(140,31,40,0.55)", line: "#8c1f28" };
   if (title.includes("ЖИВЫМИ")) return { main: "#8fbc8d", glow: "rgba(125,168,123,0.4)", line: "#5a7a5c" };
   if (title.includes("ТРЕЩИНАХ")) return { main: "#c9a227", glow: "rgba(201,162,39,0.35)", line: "#7a6420" };

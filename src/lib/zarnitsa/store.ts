@@ -18,6 +18,7 @@ import {
 } from "./engine";
 import { WHISPERS } from "./whispers";
 import { BRUSHWOOD_SPOTS, DAY_WOOD_CAP, DAY_WOOD_FUEL, makeDayTalk } from "./day";
+import { recordRun } from "./chronicle";
 import {
   NIGHT_COUNT,
   NIGHT_TITLES,
@@ -509,13 +510,15 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     const done = isTalk ? doneToday : [...doneToday, activeEvent.id];
 
     if (next.finished) {
+      const ending = endingOf(next);
       clearSave();
       sfxEnding();
+      recordRun(next, ending); // летопись походов (M1.7)
       set({
         state: next,
         screen: "end",
         activeEvent: null,
-        ending: endingOf(next),
+        ending,
         talkMenu: null,
         intro: null,
         hasSave: false,
@@ -562,9 +565,11 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     if (Object.values(diff).some((d) => d < 0)) sfxDeltaDown();
 
     if (next.finished) {
+      const ending = endingOf(next);
       clearSave();
       sfxEnding();
-      set({ state: next, screen: "end", ending: endingOf(next), pendingDoneId: null, intro: null, hasSave: false });
+      recordRun(next, ending); // летопись походов (M1.7)
+      set({ state: next, screen: "end", ending, pendingDoneId: null, intro: null, hasSave: false });
       return;
     }
     if (next.speechTarget) {
@@ -609,6 +614,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
     }
     if (next.finished) {
       clearSave();
+      recordRun(next, endingOf(next)); // летопись походов (M1.7)
       set({ screen: "end", ending: endingOf(next), hasSave: false });
     }
   },
@@ -804,6 +810,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       set({ screen: "speech", talkMenu: null, activeEvent: null });
     } else if (next.finished) {
       clearSave();
+      recordRun(next, endingOf(next)); // летопись походов (M1.7)
       set({ screen: "end", ending: endingOf(next), hasSave: false });
     }
   },

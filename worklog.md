@@ -111,3 +111,21 @@ Work Log:
 Stage Summary:
 - M1.6 closed: dawn walk-away now echoes through the morning (the squad speaks of the one who left), the omen bird has a day-phase footprint on the map, and every run ends under its own full-screen title before the chronicle.
 - Push to GitHub after commit (origin/main → M1.6).
+
+---
+
+Task ID: 12 (session 8, continued)
+Agent: main
+Task: M1.7 "Chronicle of Runs" (meta-memory between runs) + LogTicker leak fix
+
+Work Log:
+- chronicle.ts (new): ChronicleEntry {at, title, subtitle, gold, memoryCount, whispers (flags wh_* count), rows[{cid, level, gone, betrayed, walked}]}; loadChronicle / recordRun (cap 8, oldest leaves first) / clearChronicle; useSyncExternalStore plumbing — cached stable snapshot (getChronicle/getChronicleServer), subscribeChronicle (zarnitsa-chronicle + storage events), emitChronicle on every record/clear.
+- store.ts: all four end-transitions (choose, chooseSpeech, drain, resolveWhisper) now call recordRun(next, ending) — every finished run lands in the chronicle (works from both 3D and classic shells: shared store).
+- Hud.tsx: ChroniclePanel on the title screen — "ЛЕТОПИСЬ ПРОШЛЫХ ПОХОДОВ · N", up to 3 recent entries: date (ru-RU), ending title in its palette (titleTone exported from EndingTitle), whispers count, party dots (level colors as minimap; V = dark core, gone = rim, tooltip names knife/dawn-walk); hint "старшие записи уходят в Мглу первыми"; version M1.7.
+- Fix: LogTicker rendered on title/end screens (semi-transparent overlays let the log bleed through) — now guarded: screen !== "title" && screen !== "end".
+- Static checks: tsc + eslint clean; simulate3d still ALL CHECKS PASSED.
+- Browser verification (all green): run 1 (release at finale) → end "УШЛИ ЖИВЫМИ" → chronicle entry written (gold 0, rows 4); restart → title panel shows "23 окт. УШЛИ ЖИВЫМИ" with 3 green dots + dark-rimmed dot (Ratmir walked) — shot_m17_title_chronicle.png; run 2 (hold the oath) → "НОЖ ПОД КЛЯТВОЙ" → entries=2; panel shows both titles in their palettes with correct dots — shot_m17_title_two.png; after reload the panel survives (persistence verified) and the title screen is clean of the log bleed — shot_m17_title_clean.png; console clean. Test data cleared, browser closed.
+
+Stage Summary:
+- M1.7 closed: the betrayal engine remembers its own runs — each denouement becomes a line in the meta-chronicle on the title screen; players now see their past oaths (and knives) before entering the Mist again.
+- Push to GitHub after commit (origin/main → M1.7).

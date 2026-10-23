@@ -2,7 +2,7 @@
 
 /* HUD 3D-версии: титул, шапка, мини-карточки, модалки, летопись, рассвет */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { COMPANIONS, LADDER, COMPANION_BY_ID } from "@/lib/zarnitsa/data";
 import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
 import {
@@ -28,8 +28,9 @@ import {
 import { CompanionCard, LevelBadge } from "@/components/zarnitsa/CompanionCard";
 import { SpeechDialog } from "@/components/zarnitsa/SpeechDialog";
 import { Minimap } from "./Minimap";
-import { EndingTitle } from "./EndingTitle";
+import { EndingTitle, titleTone } from "./EndingTitle";
 import { touchInput } from "./campLife";
+import { getChronicle, getChronicleServer, subscribeChronicle, type ChronicleRow } from "@/lib/zarnitsa/chronicle";
 
 const LOG_CLASS: Record<string, string> = {
   memory: "z-log-memory",
@@ -513,6 +514,73 @@ function Pult() {
 
 /* ---------------- титульный экран ---------------- */
 
+/** цвета ступеней — как на мини-карте; V уход/предательство приглушён */
+const LEVEL_COLORS = ["#7da87b", "#c9a227", "#b3542f", "#d95f3b", "#8c1f28", "#5a1020"];
+
+/** точка спутника в летописи: цвет по ступени, V — тёмное кольцо с ядром */
+function PartyDot({ row }: { row: ChronicleRow }) {
+  const def = COMPANION_BY_ID[row.cid];
+  const dim = row.gone;
+  const betrayed = row.betrayed;
+  return (
+    <span
+      title={`${def?.name ?? row.cid} · ступень ${row.level}${row.betrayed ? " · нож" : ""}${row.walked ? " · ушёл на рассвете" : ""}`}
+      className="inline-block h-2.5 w-2.5 rounded-full"
+      style={{
+        backgroundColor: row.level >= 5 ? (betrayed ? "#5a1020" : "#2e2a38") : LEVEL_COLORS[Math.min(5, row.level)],
+        boxShadow: dim ? "0 0 0 1px rgba(154,143,150,0.55)" : "none",
+        opacity: dim ? 0.9 : 1,
+      }}
+    />
+  );
+}
+
+/** летопись прошлых походов (M1.7): титулы развязок рядом с новой ночью */
+function ChroniclePanel() {
+  const entries = useSyncExternalStore(subscribeChronicle, getChronicle, getChronicleServer);
+  if (entries.length === 0) return null;
+  const recent = [...entries].reverse().slice(0, 3);
+  return (
+    <div className="z-panel mt-6 w-full max-w-xl p-4">
+      <div className="flex items-baseline gap-2">
+        <p className="text-[10px] uppercase tracking-[0.35em] text-[#9a8f96]">летопись прошлых походов</p>
+        <span className="text-[10px] tabular-nums text-[#6a5f66]">· {entries.length}</span>
+      </div>
+      <div className="mt-3 space-y-2.5">
+        {recent.map((e) => {
+          const tone = titleTone(e.title);
+          const day = new Date(e.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+          return (
+            <div key={e.at} className="flex items-center gap-3">
+              <span className="w-[52px] shrink-0 text-[10px] tabular-nums text-[#6a5f66]">{day}</span>
+              <span
+                className="z-heading truncate text-sm font-semibold"
+                style={{ color: tone.main }}
+                title={e.subtitle || e.title}
+              >
+                {e.title}
+              </span>
+              <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                {e.whispers > 0 && (
+                  <span className="text-[10px] tabular-nums text-[#7a8aa0]" title="принятых шёпотов за прогон">
+                     {(e.whispers).toString()}
+                  </span>
+                )}
+                {e.rows.map((r) => (
+                  <PartyDot key={r.cid} row={r} />
+                ))}
+              </span>
+            </div>
+          );
+        })}
+        {entries.length > recent.length && (
+          <p className="text-[10px] text-[#6a5f66]">старшие записи уходят в Мглу первыми</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TitleScreen() {
   const start = useZarnitsa((s) => s.start);
   const resumeRun = useZarnitsa((s) => s.resumeRun);
@@ -525,7 +593,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.6 «Память рассвета»
+        3D-прототип · M1.7 «Летопись походов»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -560,6 +628,7 @@ function TitleScreen() {
           <b className="text-[#c9a227]">Разговоры</b> — поддержка или «уколоть»
         </span>
       </div>
+      <ChroniclePanel />
       {hasSave && (
         <button
           onClick={resumeRun}
@@ -1233,7 +1302,7 @@ export function Hud() {
         </div>
       ) : null}
       <Prompt />
-      <LogTicker />
+      {screen !== "title" && screen !== "end" && <LogTicker />}
       <ControlsHint />
       <Minimap />
       <Vignette />
