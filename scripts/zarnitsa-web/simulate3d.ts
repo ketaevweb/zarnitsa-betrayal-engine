@@ -9,6 +9,8 @@
 import { COMPANION_BY_ID, COMPANIONS } from "../../src/lib/zarnitsa/data";
 import {
   applyChoice,
+  applyDawnWalkaways,
+  buildEnding,
   debugReset,
   levelFromTrust,
   resolveSpeech,
@@ -16,6 +18,7 @@ import {
   type SpeechOption,
 } from "../../src/lib/zarnitsa/engine";
 import {
+  finaleCandidates,
   makeFinaleEvent,
   makeTalkEvent,
   NIGHT_COUNT,
@@ -165,6 +168,13 @@ function run(mode: Mode, seed = 1): { state: GameState; ambientVisited: number }
       state = resolveSpeechQueue(state, mode, rng);
     }
     if (state.finished) break;
+    // M1.5: рассвет между ночами — ступень IV не дожидается Столпа
+    if (night < NIGHT_COUNT) {
+      const walked = applyDawnWalkaways(state);
+      for (const cid of walked) {
+        console.log(`    рассвет: ${COMPANION_BY_ID[cid].name} ушёл в Мглу сам (ступень IV)`);
+      }
+    }
   }
   return { state, ambientVisited };
 }
@@ -189,8 +199,8 @@ function invariants(state: GameState, label: string) {
       `${label}: ступень ${cs.id} согласована с доверием`);
     if (cs.level === 5) {
       assert(
-        state.finished,
-        `${label}: V у ${cs.id} возможен только в финальной развязке (нож или отпуск)`,
+        state.finished || cs.walkedAtDawn === true,
+        `${label}: V у ${cs.id} возможен только в развязке (нож/отпуск) или рассветным уходом`,
       );
     }
     for (const m of cs.memories) {
@@ -276,6 +286,8 @@ function finaleState(trust: number): GameState {
 const finBase = finaleState(8);
 const finEvent = makeFinaleEvent(finBase, []);
 assert(finEvent !== null, "сцена развязки открывается при ступени IV");
+let sHold: GameState | null = null;
+let sRel: GameState | null = null;
 if (finEvent) {
   assert(finEvent.id === "e12_finale", "id развязки отличен от обычного Столпа");
   assert(finEvent.choices.length === 3, "три развязки: держать / отпустить / исповедь");
@@ -285,7 +297,7 @@ if (finEvent) {
   );
 
   // а. Держать клятву → нож (V, предательство)
-  const sHold = applyChoice(withPhase(structuredClone(finBase), 3, "Ночь"), finEvent.choices[0]);
+  sHold = applyChoice(withPhase(structuredClone(finBase), 3, "Ночь"), finEvent.choices[0]);
   assert(sHold.finished, "«Держать клятву» завершает поход");
   assert(
     sHold.party.gavrila.gone && sHold.party.gavrila.betrayedAtFinale === true,
@@ -294,7 +306,7 @@ if (finEvent) {
   invariants(sHold, "нож");
 
   // б. Отпустить → уход живым (V без предательства)
-  const sRel = applyChoice(withPhase(structuredClone(finBase), 3, "Ночь"), finEvent.choices[1]);
+  sRel = applyChoice(withPhase(structuredClone(finBase), 3, "Ночь"), finEvent.choices[1]);
   assert(sRel.finished, "«Отпустить» завершает поход");
   assert(
     sRel.party.gavrila.gone && sRel.party.gavrila.level === 5 && !sRel.party.gavrila.betrayedAtFinale,
@@ -334,9 +346,64 @@ if (finEvent) {
     sparedEvent !== null && sparedEvent.text.some((p) => p.includes("Ты не ответил")),
     "отвергнутый шёпот тоже помнят — но в пользу игрока",
   );
-} else {
-  failures.push("makeFinaleEvent вернул null при ступени IV");
+  // е. Ворон (M1.5): знамение досиживает развязку на изголовье Столпа
+  assert(
+    echoEvent !== null && echoEvent.text.some((p) => p.includes("ворон")),
+    "ворон упомянут в сцене развязки",
+  );
 }
+
+/* --- 5. УХОД НА РАССВЕТЕ (M1.5): ступень IV не дожидается клятвы + титулы концовок --- */
+console.log("\n5) УХОД НА РАССВЕТЕ: рассвет забирает ступень IV; у каждой концовки — своё имя");
+
+// а. Надломленный без заморозки уходит на рассвете
+const sWalk = debugReset();
+sWalk.party.ratmir.trust = 5;
+sWalk.party.ratmir.level = 4;
+const walkedIds = applyDawnWalkaways(sWalk);
+assert(
+  walkedIds.includes("ratmir") &&
+    sWalk.party.ratmir.gone &&
+    sWalk.party.ratmir.level === 5 &&
+    sWalk.party.ratmir.walkedAtDawn === true &&
+    !sWalk.party.ratmir.betrayedAtFinale,
+  "рассвет забирает ступень IV: V без ножа, помечен walkedAtDawn",
+);
+assert(!sWalk.finished, "рассветный уход не завершает поход — клятва ещё впереди");
+
+// б. Замороженный Правом слова рассвет не трогает — его судьба у Столпа
+const sFrozen = debugReset();
+sFrozen.party.ratmir.trust = 5;
+sFrozen.party.ratmir.level = 4;
+sFrozen.party.ratmir.frozen = true;
+assert(!applyDawnWalkaways(sFrozen).includes("ratmir"), "замороженный Правом слова уходит только через развязку");
+
+// в. Ушедший не приходит к Столпу; надломленный III — приходит
+const sBoth = debugReset();
+sBoth.party.gavrila.trust = 20; // ступень III — развязка его не отпускает
+sBoth.party.gavrila.level = 3;
+sBoth.party.ratmir.trust = 5;
+sBoth.party.ratmir.level = 4;
+applyDawnWalkaways(sBoth);
+const cands = finaleCandidates(sBoth);
+assert(!cands.includes("ratmir"), "ушедший на рассвете не кандидат развязки");
+assert(cands.includes("gavrila"), "надломленный (III) остаётся кандидатом развязки");
+
+// г. Титулы концовок
+if (sHold && sRel) {
+  assert(buildEnding(sHold).title === "НОЖ ПОД КЛЯТВОЙ", `титул предательства: ${buildEnding(sHold).title}`);
+  assert(buildEnding(sRel).title === "УШЛИ ЖИВЫМИ", `титул отпуска: ${buildEnding(sRel).title}`);
+}
+assert(
+  buildEnding(sWalk).title === "УШЛИ ЖИВЫМИ",
+  `титул рассветного ухода: ${buildEnding(sWalk).title}`,
+);
+const kindEnd = buildEnding(run("kind").state);
+assert(
+  kindEnd.title === "КЛЯТВА ДЕРЖИТ" || kindEnd.title === "ТРИ НОЧИ ПОД МГЛОЙ",
+  `титул чистого прогона: ${kindEnd.title}`,
+);
+console.log(`    титул доброго прогона: ${kindEnd.title}`);
 
 console.log("\n================================");
 if (failures.length === 0) {

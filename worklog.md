@@ -66,3 +66,26 @@ Stage Summary:
 - M1.4 closed: the promise of the betrayal engine ("V — only through the plot") became a live scene; whispers/echo got their payoff at the Pillar.
 - Next ideas: M1.5 — crow lands on the Pillar during the finale; companion departure in the day phase (level IV walks at dawn); endings polish (per-ending titles).
 
+
+---
+
+Task ID: 10 (session 7)
+Agent: main
+Task: M1.5 "Crow on the Pillar" (crow at the finale + dawn walk-away + ending titles) + push
+
+Work Log:
+- Git/GitHub state verified first: origin/main = 002ca7a (M1.4) — session 6 push had landed; stray chmod noise (worklog.md + shot_m14_*.png modes) restored to 644 instead of a junk commit.
+- M1.5 implemented:
+  - engine.ts: walkAway() — V without knife, no witnesses (betrayedAtFinale=false, walkedAtDawn=true, own chronicle line "ушёл в Мглу сам — на рассвете, до клятвы"); applyDawnWalkaways() — dawn takes every level-4 unfrozen companion; buildEnding now returns per-ending title+subtitle (НОЖ ПОД КЛЯТВОЙ / УШЛИ ЖИВЫМИ / КЛЯТВА В ТРЕЩИНАХ / ТРИ НОЧИ ПОД МГЛОЙ / КЛЯТВА ДЕРЖИТ) and level-5 verdict distinguishes walkedAtDawn.
+  - types.ts: CompanionState.walkedAtDawn?: boolean.
+  - store.ts: maybeWalkAtDawn() gate (all night events done, night < NIGHT_COUNT, not dayMode) wired into choose() and chooseSpeech(); transient dawnWalked: string[] shown on dawn screen, cleared in dawnGo/startNight/start/resume; sfxCaw on finale open.
+  - scenario3d.ts: finale text gained the crow paragraph ("Падальщики приходят раньше ножей").
+  - Crow.tsx: finale mode — renders during the finale scene, fly-in along a quadratic bezier from behind the forest (2.6 s, continuous flapping), lands on the Pillar cap (PILLAR_ANCHOR 0.38/4.52/-19.5) beside the ritual flame; perched = no hops/pecks, frequent caws (3.4–9.5 s), head tracks the player; eyes glow 1.6; shadow only in day mode. Day-mode gaze fixed: model faces −z, so look-at now uses atan2(−dx,−dz) (bird actually faces the player/hop direction now).
+  - Hud.tsx: dawn overlay panel "РАССВЕТ ЗАБРАЛ СВОЁ" for dawnWalked; version M1.5. EndScreen.tsx: h1 = ending.title (fallback "Три ночи прошли"), subtitle prepended to stats line.
+  - simulate3d.ts: run() applies applyDawnWalkaways between nights; invariant relaxed (level 5 OK when walkedAtDawn); section 5 — walk-away (unfrozen IV walks, frozen doesn't, walked can't be finale candidate, level III stays candidate), ending titles, crow mentioned in finale text; title checks hoisted sHold/sRel.
+- Browser verification (all green): ratmir forced to lvl 4 unfrozen before the last night-1 event → dawn panel "Ратмир ушёл в Мглу прямо на рассвете" (shot_m15_walk_dawn2.png); camp shows 6/7 tasks (his talk gone), 3 party cards, log keeps V line (shot_m15_walk_camp.png); night 2 starts with 3 alive. Night 3: finale opens, crow paragraph in text (shot_m15_crow_fly.png, shot_m15_crow_wide2.png); crowLive lands exactly at PILLAR_ANCHOR after fly-in; close-up shows the crow silhouette with glowing eye beside the ritual flame (shot_m15_crow_top_zoom.png); hold → end screen titled "НОЖ ПОД КЛЯТВОЙ" (shot_m15_end_hold.png). Console clean; save cleared; browser closed. tsc (src) + eslint clean; simulate3d — ALL CHECKS PASSED.
+- Push to GitHub with the user token (direct URL push, token not stored in config).
+
+Stage Summary:
+- M1.5 closed: the omen crow completes its arc (forest edge → camp → Pillar cap), betrayal now has a pre-echo at dawn (stage IV leaves before the oath), and every run ends under its own title.
+- Next ideas: M1.6 — дневной след ворона (ворон на мини-карте), реплики отряда об ушедшем на рассвете (эхо ухода в dtalk), титульная заставка концовки (полноэкранный титул перед летописью).

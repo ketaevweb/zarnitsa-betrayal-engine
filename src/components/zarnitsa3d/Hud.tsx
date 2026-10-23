@@ -525,7 +525,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.4 «Нож под клятвой»
+        3D-прототип · M1.5 «Ворон на Столпе»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА
@@ -660,6 +660,7 @@ function DawnOverlay() {
   const dawnGo = useZarnitsa((s) => s.dawnGo);
   const summary = useZarnitsa((s) => s.nightSummary);
   const echo = useZarnitsa((s) => s.whisperEcho);
+  const walked = useZarnitsa((s) => s.dawnWalked);
   useEffect(() => {
     sfxDawn();
   }, []);
@@ -697,6 +698,18 @@ function DawnOverlay() {
         )}
         {crowLine && (
           <p className="mt-2 text-xs leading-relaxed italic text-[#8f8694]">{crowLine}</p>
+        )}
+        {walked.length > 0 && (
+          <div className="z-fadein mt-3 border border-[#5a1020]/70 bg-[#5a1020]/15 p-3 text-left">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-[#c96a5a]">
+              рассвет забрал своё
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-[#d6cfc2]">
+              {walked.map((cid) => COMPANION_BY_ID[cid]?.name ?? cid).join(" и ")}{" "}
+              {walked.length === 1 ? "ушёл" : "ушли"} в Мглу прямо на рассвете — ступень IV не
+              дождалась ни Права слова, ни Столпа. Нож остался у костра.
+            </p>
+          </div>
         )}
         {summary && summary.length > 0 && (
           <div className="z-panel mt-4 p-3 text-left">

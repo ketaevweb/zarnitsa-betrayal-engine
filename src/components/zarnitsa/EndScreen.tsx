@@ -18,6 +18,9 @@ interface EndingData {
     bitterShare: number;
   }[];
   chronicle: string;
+  /** титул похода (M1.5): своя развязка — своё название */
+  title?: string;
+  subtitle?: string;
 }
 
 export function EndScreen({
@@ -78,10 +81,11 @@ export function EndScreen({
           Летопись похода
         </p>
         <h1 className="z-heading mt-2 text-center text-4xl font-bold sm:text-5xl">
-          Три ночи прошли
+          {ending.title ?? "Три ночи прошли"}
         </h1>
         <p className="mt-2 text-center text-sm text-[#9a8f96]">
-          Записей в памяти отряда: {totalMemories} · Проклятого золота: {state.gold}
+          {ending.subtitle ? `${ending.subtitle} · ` : ""}Записей в памяти отряда: {totalMemories} ·
+          Проклятого золота: {state.gold}
         </p>
 
         {ending.chronicle && (

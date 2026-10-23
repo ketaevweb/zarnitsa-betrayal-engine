@@ -88,6 +88,8 @@ export interface CompanionState {
   gone: boolean;
   /** предал в финале (сюжетный force_break IV→V) */
   betrayedAtFinale?: boolean;
+  /** ушёл в Мглу сам — на рассвете, не дожидаясь Столпа (M1.5) */
+  walkedAtDawn?: boolean;
 }
 
 export interface LogEntry {

@@ -425,6 +425,39 @@ export function releaseBreak(state: GameState, companionId: string) {
   });
 }
 
+/** Рассветный уход (M1.5): V без ножа и без свидетелей — надлом не дождался клятвы.
+ *  Отличие от releaseBreak: ни воли игрока, ни Столпа — просто тишина на утреннем снегу. */
+export function walkAway(state: GameState, companionId: string) {
+  const cs = state.party[companionId];
+  const def = COMPANION_BY_ID[companionId];
+  if (!cs || cs.gone) return;
+  cs.level = 5;
+  cs.status = "broken";
+  cs.gone = true;
+  cs.frozen = false;
+  cs.pendingSpeechLevel = null;
+  cs.betrayedAtFinale = false;
+  cs.walkedAtDawn = true;
+  state.log.push({
+    id: uid("log"),
+    kind: "finale",
+    companionId,
+    text: `V · Разрыв. ${def.name} ушёл в Мглу сам — на рассвете, до клятвы. Никто не окликнул: все видели, что он давно уже не с нами.`,
+  });
+}
+
+/** M1.5: рассвет забирает всех, кто достиг ступени IV и не заморожен Правом слова.
+ *  Возвращает id ушедших (пусто — никто). */
+export function applyDawnWalkaways(state: GameState): string[] {
+  const out: string[] = [];
+  for (const cs of Object.values(state.party)) {
+    if (cs.gone || cs.frozen || cs.level < 4) continue;
+    walkAway(state, cs.id);
+    out.push(cs.id);
+  }
+  return out;
+}
+
 /* ---------- право слова ---------- */
 
 export type SpeechOption = "confess" | "justify" | "gift" | "silence";
@@ -566,7 +599,9 @@ export function buildEnding(state: GameState) {
       case 5:
         verdict = cs.betrayedAtFinale
           ? "Воткнул нож под клятвой и растворился в Мгле."
-          : "Опустил нож и ушёл в Мглу живым. Клятва пережила его.";
+          : cs.walkedAtDawn
+            ? "Ушёл в Мглу сам — на рассвете, не дожидаясь ни Права слова, ни Столпа."
+            : "Опустил нож и ушёл в Мглу живым. Клятва пережила его.";
         break;
       default:
         verdict = "Готовил удар в спину.";
@@ -593,7 +628,30 @@ export function buildEnding(state: GameState) {
     chronicle = `«Летопись оборвалась на середине страницы. Почерк Милуты узнают по дрожи последней буквы.»`;
   }
 
-  return { rows, chronicle };
+  // титул похода (M1.5): каждая развязка называется своими словами
+  const anyBetrayed = rows.some((r) => r.level === 5 && state.party[r.companionId]?.betrayedAtFinale);
+  const anyGone = rows.some((r) => r.level === 5);
+  const worstLevel = rows.reduce((m, r) => Math.max(m, r.level), 0);
+  let title: string;
+  let subtitle: string;
+  if (anyBetrayed) {
+    title = "НОЖ ПОД КЛЯТВОЙ";
+    subtitle = "Отряд дошёл до Столпа — но не все дошли до клятвы.";
+  } else if (anyGone) {
+    title = "УШЛИ ЖИВЫМИ";
+    subtitle = "Клятва пережила каждого, кто её покинул.";
+  } else if (worstLevel >= 3) {
+    title = "КЛЯТВА В ТРЕЩИНАХ";
+    subtitle = "Никто не ушёл — но глаза у отряда стали слишком прямыми.";
+  } else if (worstLevel >= 2) {
+    title = "ТРИ НОЧИ ПОД МГЛОЙ";
+    subtitle = "Дошли все. Не все — до сих пор твои.";
+  } else {
+    title = "КЛЯТВА ДЕРЖИТ";
+    subtitle = "Мгле не за что зацепиться. Запомни этот рассвет.";
+  }
+
+  return { rows, chronicle, title, subtitle };
 }
 
 /* ---------- отладочный пульт ---------- */

@@ -8,6 +8,7 @@ import { create } from "zustand";
 import {
   applyChoice,
   applyWhisper,
+  applyDawnWalkaways,
   buildEnding,
   debugDrainAll,
   debugReset,
@@ -39,6 +40,7 @@ import {
 import {
   audioStart,
   sfxClick,
+  sfxCaw,
   sfxDeltaDown,
   sfxDeltaUp,
   sfxEnding,
@@ -229,6 +231,8 @@ interface ZarnitsaStore {
   whisperDone: string[];
   /** эхо шёпотов прошлой ночи (M1.2): утром отряд помнит, чистится на новой ночи */
   whisperEcho: EchoEntry[];
+  /** ушедшие в Мглу на этом рассвете (M1.5): строка на экране рассвета */
+  dawnWalked: string[];
   /** дневная фаза (M1.1): идёт утренний обход — экран camp */
   dayMode: boolean;
   /** утренние дела: пройденные разговоры (dtalk_*) и вязанки (b1..b3) */
@@ -278,6 +282,20 @@ function endingOf(state: GameState): Ending {
   return buildEnding(state);
 }
 
+/** M1.5: рассвет близко (все события ночи пройдены) — ступень IV не дожидается Столпа.
+ *  Возвращает id ушедших (пусто — никто). */
+function maybeWalkAtDawn(
+  state: GameState,
+  night: number,
+  done: string[],
+  dayMode: boolean,
+): string[] {
+  if (dayMode || night >= NIGHT_COUNT) return [];
+  const list = nightEvents(night);
+  if (!list.every((e) => done.includes(e.id))) return [];
+  return applyDawnWalkaways(state);
+}
+
 /** какие маркеры сейчас активны */
 export function availableEvents(state: GameState, night: number, doneToday: string[]): SceneEventLite[] {
   const list = nightEvents(night);
@@ -321,6 +339,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
   whisper: null,
   whisperDone: [],
   whisperEcho: [],
+  dawnWalked: [],
   dayMode: false,
   dayDone: [],
   dayWood: 0,
@@ -338,6 +357,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       doneToday: [],
       whisperDone: [],
       whisperEcho: [],
+      dawnWalked: [],
       activeEvent: null,
       pendingDoneId: null,
       talkMenu: null,
@@ -403,6 +423,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       dayWood: save.day?.wood ?? 0,
       whisperDone: save.wh ?? [],
       whisperEcho: save.echo ?? [],
+      dawnWalked: [],
     });
   },
 
@@ -435,12 +456,14 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       );
       return;
     }
-    // развязка (M1.4): если клятва надломлена — Мгла выходит из тумана первой
+    // развязка (M1.4): если клятва надломлена — Мгла выходит из тумана первой;
+    // ворон (M1.5) уже на Столпе — падальщики приходят раньше ножей
     if (id === "e12") {
       const fin = makeFinaleEvent(get().state, get().whisperEcho);
       if (fin) {
         sfxReveal();
         sfxWhisper();
+        sfxCaw();
         set({ screen: "event", activeEvent: fin });
         return;
       }
@@ -513,6 +536,9 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       });
       return;
     }
+    // M1.5: рассветный уход — ступень IV не дожидается Столпа
+    const walked = maybeWalkAtDawn(next, get().night, done, get().dayMode);
+    if (walked.length) set({ dawnWalked: walked });
     // утренний разговор (M1.1): помечаем дневное дело, возвращаемся в лагерь
     if (isDayTalk) {
       const dayDone = [...get().dayDone, activeEvent.id];
@@ -546,6 +572,9 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       return;
     }
     const done = pendingDoneId ? [...doneToday, pendingDoneId] : doneToday;
+    // M1.5: рассветный уход — событие закрылось Правом слова, рассвет близко
+    const walked = maybeWalkAtDawn(next, get().night, done, get().dayMode);
+    if (walked.length) set({ dawnWalked: walked });
     set({ state: next, screen: get().dayMode ? "camp" : "play", pendingDoneId: null, doneToday: done });
     persist(next, get().night, done, get().nightStart, get().fire, get().dayMode ? { done: get().dayDone, wood: get().dayWood } : undefined, get().whisperDone, get().whisperEcho);
     getAndApplyDawn(set, get, next, done);
@@ -593,6 +622,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       dayMode: true,
       dayDone: [],
       dayWood: 0,
+      dawnWalked: [],
       activeEvent: null,
       pendingDoneId: null,
       nearest: null,
@@ -621,6 +651,7 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       dayMode: false,
       dayDone: [],
       dayWood: 0,
+      dawnWalked: [],
       night: nextNight,
       doneToday: [],
       whisperDone: [],

@@ -16,6 +16,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
+import { FINALE_EVENT_ID, PILLAR_POS } from "@/lib/zarnitsa/scenario3d";
 import { playerPos } from "./Player";
 import { sfxCaw } from "@/lib/zarnitsa/audio";
 
@@ -28,6 +29,12 @@ const SPOTS: [number, number, number][] = [
   [8.5, 0.5, -12], // штабель w1 — средний круг
   [12.5, 0.5, 3.5], // штабель w3 — на виду у костра
 ];
+
+/** развязка (M1.5): ворон на изголовье Столпа — южная кромка шляпки, у чаши огня */
+const PILLAR_ANCHOR: [number, number, number] = [PILLAR_POS[0] + 0.38, 4.52, PILLAR_POS[1] + 0.5];
+/** старт подлёта — из-за леса за Столпом */
+const FLY_FROM = new THREE.Vector3(2, 24, -46);
+const FLY_MID = new THREE.Vector3(3.5, 13, -31);
 
 function crowSpot(accepted: number, day: number): [number, number, number] {
   const idx = Math.min(2, Math.max(0, accepted + (day >= 3 ? 1 : 0)));
@@ -44,6 +51,7 @@ interface Bot {
   cawT: number; // таймер до карканья
   cawA: number; // прогресс вскрика 0..1 (−1 = тихо)
   heading: number; // текущий угол взгляда
+  fly: number; // подлёт к Столпу 0..1 (−1 = на земле / уже сидит)
 }
 
 export function Crow() {
@@ -61,20 +69,27 @@ export function Crow() {
     cawT: 9,
     cawA: -1,
     heading: Math.PI,
+    fly: -1,
   });
 
   const night = useZarnitsa((s) => s.night);
   const echo = useZarnitsa((s) => s.whisperEcho);
   const isDay = useZarnitsa((s) => s.screen) === "camp";
+  // развязка (M1.5): ворон досиживает её на Столпе — падальщик приходит раньше ножей
+  const finaleNow =
+    useZarnitsa((s) => s.screen === "event" && s.activeEvent?.id === FINALE_EVENT_ID) ?? false;
 
   const accepted = useMemo(() => echo.filter((e) => !e.spared).length, [echo]);
   const day = night + 1;
   const anchor = useMemo(() => crowSpot(accepted, day), [accepted, day]);
-  const anchorVec = useMemo(() => new THREE.Vector3(anchor[0], anchor[1], anchor[2]), [anchor]);
+  const anchorVec = useMemo(
+    () => new THREE.Vector3(...(finaleNow ? PILLAR_ANCHOR : anchor)),
+    [anchor, finaleNow],
+  );
 
   useFrame(({ clock }, dtRaw) => {
     const g = group.current;
-    if (!g || !isDay) return;
+    if (!g || (!isDay && !finaleNow)) return;
     const dt = Math.min(dtRaw, 0.05);
     const t = clock.getElapsedTime();
     const b = bot.current;
@@ -82,48 +97,97 @@ export function Crow() {
     crowLive.y = g.position.y;
     crowLive.z = g.position.z;
 
-    // таймер хопа: воробьиная суетливость, но с удержанием якоря
-    if (b.hopA < 0) {
-      b.hopT -= dt;
-      if (b.hopT <= 0) {
-        const a = Math.random() * Math.PI * 2;
-        const r = 0.35 + Math.random() * 0.75;
-        b.from.copy(g.position);
-        b.to.set(anchorVec.x + Math.cos(a) * r, anchorVec.y, anchorVec.z + Math.sin(a) * r);
-        b.hopA = 0;
-      }
-    } else {
-      b.hopA += dt / 0.34;
-      if (b.hopA >= 1) {
-        b.hopA = -1;
-        b.hopT = 2.8 + Math.random() * 5.5;
-        g.position.copy(b.to);
-      } else {
-        const k = b.hopA;
-        g.position.lerpVectors(b.from, b.to, k);
-        g.position.y = b.from.y + Math.sin(k * Math.PI) * 0.34;
-        // взмах крыльев в хопе
-        const flap = Math.sin(k * Math.PI * 2) * 0.9;
-        if (wingL.current) wingL.current.rotation.z = 0.5 + flap;
-        if (wingR.current) wingR.current.rotation.z = -0.5 - flap;
-      }
+    // ── подлёт к Столпу (M1.5): дуга из-за леса, непрерывный взмах
+    if (finaleNow && b.fly === -1) {
+      b.fly = 0;
+      g.position.copy(FLY_FROM);
     }
-    if (b.hopA < 0) {
-      const settle = Math.sin(t * 1.7 + anchor[0]) * 0.045;
-      if (wingL.current) wingL.current.rotation.z += (0.28 - wingL.current.rotation.z) * dt * 5;
-      if (wingR.current) wingR.current.rotation.z += (-0.28 - wingR.current.rotation.z) * dt * 5;
-      g.position.y += (anchorVec.y + settle - g.position.y) * Math.min(1, dt * 6);
+    if (b.fly >= 0) {
+      b.fly = Math.min(1, b.fly + dt / 2.6);
+      const k = b.fly;
+      // квадратичный Безье: FLY_FROM → FLY_MID → якорь на Столпе
+      const u = 1 - k;
+      const ax = u * u * FLY_FROM.x + 2 * u * k * FLY_MID.x + k * k * anchorVec.x;
+      const ay = u * u * FLY_FROM.y + 2 * u * k * FLY_MID.y + k * k * anchorVec.y;
+      const az = u * u * FLY_FROM.z + 2 * u * k * FLY_MID.z + k * k * anchorVec.z;
+      // клюв по ходу движения (модель смотрит в −z)
+      const mdx = ax - g.position.x;
+      const mdz = az - g.position.z;
+      if (Math.abs(mdx) + Math.abs(mdz) > 1e-4) {
+        const want = Math.atan2(-mdx, -mdz);
+        let diff = want - b.heading;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        b.heading += diff * Math.min(1, dt * 6);
+      }
+      g.rotation.y = b.heading;
+      g.position.set(ax, ay, az);
+      const flap = Math.sin(t * 16) * 1.05;
+      if (wingL.current) wingL.current.rotation.z = 0.5 + flap;
+      if (wingR.current) wingR.current.rotation.z = -0.5 - flap;
+      if (head.current) head.current.rotation.x = 0;
+      if (k >= 1) {
+        b.fly = -2; // сел — выше не трогаем
+        b.cawT = 0.45; // первое карканье сразу после посадки
+        b.hopA = -1;
+        b.peckA = -1;
+      }
+      return;
     }
 
-    // клевание: резкий наклон головы
-    if (b.peckA < 0) {
-      b.peckT -= dt;
-      if (b.peckT <= 0) b.peckA = 0;
+    // ── на земле / на Столпе
+    if (finaleNow) {
+      // на Столпе сидит неподвижно — знамение замерло над развязкой
+      b.hopA = -1;
+      b.peckA = -1;
+      const settle = Math.sin(t * 1.9) * 0.03;
+      if (wingL.current) wingL.current.rotation.z += (0.34 - wingL.current.rotation.z) * dt * 5;
+      if (wingR.current) wingR.current.rotation.z += (-0.34 - wingR.current.rotation.z) * dt * 5;
+      g.position.y += (anchorVec.y + settle - g.position.y) * Math.min(1, dt * 6);
     } else {
-      b.peckA += dt / 0.5;
-      if (b.peckA >= 1) {
-        b.peckA = -1;
-        b.peckT = 4 + Math.random() * 7;
+      // таймер хопа: воробьиная суетливость, но с удержанием якоря
+      if (b.hopA < 0) {
+        b.hopT -= dt;
+        if (b.hopT <= 0) {
+          const a = Math.random() * Math.PI * 2;
+          const r = 0.35 + Math.random() * 0.75;
+          b.from.copy(g.position);
+          b.to.set(anchorVec.x + Math.cos(a) * r, anchorVec.y, anchorVec.z + Math.sin(a) * r);
+          b.hopA = 0;
+        }
+      } else {
+        b.hopA += dt / 0.34;
+        if (b.hopA >= 1) {
+          b.hopA = -1;
+          b.hopT = 2.8 + Math.random() * 5.5;
+          g.position.copy(b.to);
+        } else {
+          const k = b.hopA;
+          g.position.lerpVectors(b.from, b.to, k);
+          g.position.y = b.from.y + Math.sin(k * Math.PI) * 0.34;
+          // взмах крыльев в хопе
+          const flap = Math.sin(k * Math.PI * 2) * 0.9;
+          if (wingL.current) wingL.current.rotation.z = 0.5 + flap;
+          if (wingR.current) wingR.current.rotation.z = -0.5 - flap;
+        }
+      }
+      if (b.hopA < 0) {
+        const settle = Math.sin(t * 1.7 + anchor[0]) * 0.045;
+        if (wingL.current) wingL.current.rotation.z += (0.28 - wingL.current.rotation.z) * dt * 5;
+        if (wingR.current) wingR.current.rotation.z += (-0.28 - wingR.current.rotation.z) * dt * 5;
+        g.position.y += (anchorVec.y + settle - g.position.y) * Math.min(1, dt * 6);
+      }
+
+      // клевание: резкий наклон головы
+      if (b.peckA < 0) {
+        b.peckT -= dt;
+        if (b.peckT <= 0) b.peckA = 0;
+      } else {
+        b.peckA += dt / 0.5;
+        if (b.peckA >= 1) {
+          b.peckA = -1;
+          b.peckT = 4 + Math.random() * 7;
+        }
       }
     }
     if (head.current) {
@@ -133,16 +197,16 @@ export function Crow() {
       head.current.rotation.x = peck + caw;
     }
 
-    // взгляд на игрока (ворон примечает всё)
+    // взгляд на игрока (ворон примечает всё; модель смотрит в −z)
     const pp = playerPos();
-    const want = Math.atan2(pp.x - g.position.x, pp.z - g.position.z);
+    const want = Math.atan2(-(pp.x - g.position.x), -(pp.z - g.position.z));
     let diff = want - b.heading;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    b.heading += diff * Math.min(1, dt * 3.2);
+    b.heading += diff * Math.min(1, dt * (finaleNow ? 4.5 : 3.2));
     g.rotation.y = b.heading;
 
-    // карканье: тем чаще, чем ближе к костру (якорь дальше = ближе)
+    // карканье: на Столпе — часто; на земле — тем чаще, чем ближе к костру
     if (b.cawA < 0) {
       b.cawT -= dt;
       if (b.cawT <= 0) {
@@ -153,16 +217,21 @@ export function Crow() {
       b.cawA += dt / 0.6;
       if (b.cawA >= 1) {
         b.cawA = -1;
-        const base = 11 + Math.random() * 12 - accepted * 3.2 - (day >= 3 ? 2.5 : 0);
-        b.cawT = Math.max(4, base);
+        const base = finaleNow
+          ? 5.5 + Math.random() * 4
+          : 11 + Math.random() * 12 - accepted * 3.2 - (day >= 3 ? 2.5 : 0);
+        b.cawT = Math.max(finaleNow ? 3.4 : 4, base);
       }
     }
   });
 
-  if (!isDay) return null;
+  if (!isDay && !finaleNow) return null;
 
   return (
-    <group ref={group} position={[anchor[0], anchor[1], anchor[2]]}>
+    <group
+      ref={group}
+      position={finaleNow ? [PILLAR_ANCHOR[0], PILLAR_ANCHOR[1], PILLAR_ANCHOR[2]] : [anchor[0], anchor[1], anchor[2]]}
+    >
       {/* тело */}
       <mesh position={[0, 0.2, 0]} rotation={[0.12, 0, 0]}>
         <coneGeometry args={[0.16, 0.5, 7]} />
@@ -191,11 +260,11 @@ export function Crow() {
         {/* глаза: на последнем утре — чуть живее блеск */}
         <mesh position={[0.055, 0.03, -0.06]}>
           <sphereGeometry args={[0.016, 6, 6]} />
-          <meshStandardMaterial color="#d8d2c0" emissive="#c9b98a" emissiveIntensity={day >= 3 ? 0.9 : 0.25} />
+          <meshStandardMaterial color="#d8d2c0" emissive="#c9b98a" emissiveIntensity={finaleNow ? 1.6 : day >= 3 ? 0.9 : 0.25} />
         </mesh>
         <mesh position={[-0.055, 0.03, -0.06]}>
           <sphereGeometry args={[0.016, 6, 6]} />
-          <meshStandardMaterial color="#d8d2c0" emissive="#c9b98a" emissiveIntensity={day >= 3 ? 0.9 : 0.25} />
+          <meshStandardMaterial color="#d8d2c0" emissive="#c9b98a" emissiveIntensity={finaleNow ? 1.6 : day >= 3 ? 0.9 : 0.25} />
         </mesh>
       </group>
       {/* крылья */}
@@ -216,8 +285,8 @@ export function Crow() {
         <cylinderGeometry args={[0.008, 0.008, 0.07, 4]} />
         <meshStandardMaterial color="#4a3b26" roughness={1} />
       </mesh>
-      {/* тень */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      {/* тень: только днём, под лапками (в полёте и на тёмной шляпке Столпа — не нужна) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={isDay}>
         <circleGeometry args={[0.16, 10]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.3} depthWrite={false} />
       </mesh>
