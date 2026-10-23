@@ -5,7 +5,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { COMPANIONS, LADDER, COMPANION_BY_ID } from "@/lib/zarnitsa/data";
 import { fmtDelta, fmtTrust, type SpeechOption } from "@/lib/zarnitsa/engine";
-import { SCENE_EVENTS, TALK_ACTIONS, nightEvents, talkAvailable } from "@/lib/zarnitsa/scenario3d";
+import {
+  FINALE_EVENT_ID,
+  SCENE_EVENTS,
+  TALK_ACTIONS,
+  nightEvents,
+  talkAvailable,
+} from "@/lib/zarnitsa/scenario3d";
 import { nightTitle, savedNight, useZarnitsa } from "@/lib/zarnitsa/store";
 import { PILLAR_FUEL, mglLive } from "@/lib/zarnitsa/camp3d";
 import { DAY_TASKS_TOTAL, dayTitle, echoLine } from "@/lib/zarnitsa/day";
@@ -294,6 +300,8 @@ function EventModal() {
   if (!ev) return null;
   const isTalk = ev.id.startsWith("talk_");
   const isDayTalk = ev.id.startsWith("dtalk_");
+  // развязка (M1.4): финальная сцена предательства — красная кромка и свой бейдж
+  const isFinale = ev.id === FINALE_EVENT_ID;
 
   // распределение напечатанных символов по абзацам (без мутаций и без хуков)
   const starts: number[] = [];
@@ -312,7 +320,9 @@ function EventModal() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/55 p-4">
       <section
-        className="z-panel z-fadein max-h-[86vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-7"
+        className={`z-panel z-fadein max-h-[86vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-7 ${
+          isFinale ? "border-[#8c1f28]! shadow-[0_0_38px_rgba(140,31,40,0.35)]" : ""
+        }`}
         aria-label={ev.title}
         onClick={typed.complete}
       >
@@ -325,7 +335,12 @@ function EventModal() {
               ПАУЗА ПРИСЯГИ · приказ
             </span>
           )}
-          {ev.title.startsWith("⸸") && (
+          {isFinale && (
+            <span className="rounded-sm border border-[#8c1f28] bg-[#8c1f28]/15 px-2 py-0.5 text-[11px] font-semibold text-[#c96a5a]">
+              ⸸ развязка
+            </span>
+          )}
+          {ev.title.startsWith("⸸") && !isFinale && (
             <span className="rounded-sm border border-[#c9a227] bg-[#c9a227]/10 px-2 py-0.5 text-[11px] font-semibold text-[#c9a227]">
               катализатор
             </span>
@@ -510,7 +525,7 @@ function TitleScreen() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0d0a10]/72 p-4 backdrop-blur-[2px]">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.4em] text-[#c9a227]">
-        3D-прототип · M1.3 «Ворон над лагерем»
+        3D-прототип · M1.4 «Нож под клятвой»
       </p>
       <h1 className="z-heading mt-3 text-center text-6xl font-bold leading-none sm:text-8xl">
         ЗАРНИЦА

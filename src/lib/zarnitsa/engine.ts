@@ -354,8 +354,29 @@ export function applyChoice(state: GameState, choice: Choice): GameState {
 
   if (choice.catalyst) catalystDrain(next);
 
-  // финальный выбор: сюжетный force_break для всех на ступени IV
+  // финальный выбор: развязка у Столпа (M1.4), затем сюжетный force_break
   if (choice.triggersFinale) {
+    // судьба того, кому Мгла вложила нож, решается выбором игрока
+    const tgt = choice.finaleTarget ? next.party[choice.finaleTarget] : null;
+    if (tgt && !tgt.gone) {
+      if (choice.finaleAct === "hold") {
+        forceBreak(next, tgt.id);
+      } else if (choice.finaleAct === "release") {
+        releaseBreak(next, tgt.id);
+      } else if (choice.finaleAct === "confess") {
+        applyMemory(
+          next,
+          tgt.id,
+          "honesty",
+          3,
+          `Признал свой шёпот против ${COMPANION_BY_ID[tgt.id].name} — вслух, у Столпа`,
+        );
+        // память не тускнеет: если горьких записей больше — клятва не удержит
+        const after = next.party[tgt.id];
+        if (levelFromTrust(after.trust) >= 4 && !after.frozen) forceBreak(next, tgt.id);
+      }
+    }
+    // остальные на ступени IV — обычный сюжетный разрыв
     for (const cs of Object.values(next.party)) {
       if (cs.gone || cs.level !== 4 || cs.frozen) continue;
       forceBreak(next, cs.id);
@@ -382,6 +403,25 @@ export function forceBreak(state: GameState, companionId: string) {
     kind: "finale",
     companionId,
     text: `V · Разрыв. ${def.name} воткнул нож под клятвой и растворился в Мгле. Обратной памяти нет — только запись.`,
+  });
+}
+
+/** Сюжетный уход: V без ножа — Мгла принимает своё живым (M1.4). */
+export function releaseBreak(state: GameState, companionId: string) {
+  const cs = state.party[companionId];
+  const def = COMPANION_BY_ID[companionId];
+  if (!cs || cs.gone) return;
+  cs.level = 5;
+  cs.status = "broken";
+  cs.gone = true;
+  cs.frozen = false;
+  cs.pendingSpeechLevel = null;
+  cs.betrayedAtFinale = false;
+  state.log.push({
+    id: uid("log"),
+    kind: "finale",
+    companionId,
+    text: `V · Разрыв. ${def.name} опустил нож, посмотрел на огонь и ушёл в Мглу живым. Клятва пережила его — не он её.`,
   });
 }
 
@@ -526,7 +566,7 @@ export function buildEnding(state: GameState) {
       case 5:
         verdict = cs.betrayedAtFinale
           ? "Воткнул нож под клятвой и растворился в Мгле."
-          : "Ушёл из отряда.";
+          : "Опустил нож и ушёл в Мглу живым. Клятва пережила его.";
         break;
       default:
         verdict = "Готовил удар в спину.";

@@ -152,6 +152,10 @@ export interface Choice {
   catalyst?: boolean;
   /** приказ в бою — проверка лояльности */
   orderCheck?: OrderCheck;
+  /** развязка у Столпа (M1.4): судьба того, кому Мгла вложила нож */
+  finaleAct?: "release" | "hold" | "confess";
+  /** кому адресована развязка (собирается динамически в makeFinaleEvent) */
+  finaleTarget?: string;
   /** завершает пролог → финал */
   triggersFinale?: boolean;
 }

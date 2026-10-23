@@ -40,4 +40,29 @@ Work Log:
 
 Stage Summary:
 - Milestones in git: M0.9 7fcd616, M1.0 cd985ad, M1.1 611a299, M1.2 f976ac3, M1.3 da13052.
-- Next ideas: M1.4 — see session notes (deepening betrayal / third night finale prep).
+- Push to GitHub done in session 6 (origin/main = fe57c14); token removed from remote URL after push.
+
+---
+
+Task ID: 9 (session 6)
+Agent: main
+Task: push to GitHub + M1.4 "Knife Under the Oath" (finale scene)
+
+Work Log:
+- History cleanup: stray UUID-message commit reworded to "chore: file execution permissions + M1.3 binary screens (crow)" (dcdf64e); worklog.md restored from git history and force-added (fe57c14; it was in .gitignore — hence lost in the recycle).
+- Push to GitHub with the user token: origin/main now = fe57c14; token removed from remote URL after push (recommend rotation — token is in chat history).
+- M1.4 implemented:
+  - types.ts: Choice.finaleAct ("release" | "hold" | "confess") + finaleTarget.
+  - engine.ts: releaseBreak() (V without knife, betrayedAtFinale=false); applyChoice finale block — target fate by act, confession writes honesty +3 (rescue only if memory allows, level recomputed honestly); other level-4 companions forceBreak as before; buildEnding verdict for V-without-knife: "Lowered the knife and walked into the Mist alive."
+  - scenario3d.ts: FINALE_EVENT_ID, finaleCandidates (level >=3, not frozen/gone; darkest first), makeFinaleEvent(state, echo) — dynamic text: Mist presses the Pillar, named betrayer steps out with a knife, Мгла speaks his worst memory; echo-aware lines (scorned → "returns the debt", spared → "you did not answer"), run-wide accepted-whisper counter via state.flags wh_*; NAME_GEN map for genitive ("against Gavrila's"); three choices with per-companion reaction memories.
+  - store.ts: openEvent("e12") intercept → finale scene when candidates exist (fuel gate unchanged); resolveWhisper accept sets flags[`wh_${id}`].
+  - Player.tsx / World.tsx: during finale — setDread(1), mglLive.closest ≤ 5.2, watchers close to r≈7.4 at fast rate (Mist presses the Pillar).
+  - Hud.tsx: finale badge "⸸ denouement", red border + glow on panel, katalizator badge suppressed for finale; version M1.4.
+  - GameCanvas.tsx: dev hook finale(cid, trust=8) — forces level 4/3 without freeze for tests.
+  - simulate3d.ts: section 4 — knife (V+betrayal), release (V, alive), confession rescues at trust 8 (→15.2, level 3), confession fails at trust 2 (→9.2, knife anyway), echo lines; invariant updated: level 5 ⇒ state.finished.
+- Browser verification (all green): finale scene opens on e12 with candidate (screens shot_m14_finale*.png); whisper counter "answered 1 time"; worst-memory line; hold → end screen "Stuck the knife under the oath" (shot_m14_end_hold.png); release → Ratmir gone lvl5 betrayed=false (shot_m14_end_release.png); confession → Miluta rescued lvl3 trust 15.5 (shot_m14_end_confess.png); clean path (no candidates) → ordinary "OATH AT THE PILLAR"; genitive fix verified "against Gavrila's" (shot_m14_echo.png); scene shot shot_m14_scene.png; console clean (only old THREE.Clock deprecation). Test save cleared, browser closed. tsc (src) + eslint clean.
+
+Stage Summary:
+- M1.4 closed: the promise of the betrayal engine ("V — only through the plot") became a live scene; whispers/echo got their payoff at the Pillar.
+- Next ideas: M1.5 — crow lands on the Pillar during the finale; companion departure in the day phase (level IV walks at dawn); endings polish (per-ending titles).
+

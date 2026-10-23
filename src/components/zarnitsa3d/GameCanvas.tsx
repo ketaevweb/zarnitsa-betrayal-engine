@@ -106,6 +106,21 @@ export default function GameCanvas() {
       events: SCENE_EVENTS,
       companions: companionLive,
       crow: crowLive,
+      // развязка (M1.4): принудительно надломить спутника перед Столпом
+      finale: (cid = "gavrila", trust = 8) => {
+        useZarnitsa.setState((s) => {
+          const state = structuredClone(s.state);
+          const cs = state.party[cid];
+          if (cs) {
+            cs.trust = trust;
+            cs.level = trust < 10 ? 4 : trust < 25 ? 3 : cs.level;
+            cs.frozen = false;
+            cs.pendingSpeechLevel = null;
+          }
+          return { state };
+        });
+        return `${cid} → trust ${trust} (уровень без заморозки)`;
+      },
     };
 
     const down = (e: KeyboardEvent) => {

@@ -10,7 +10,7 @@
  *  - финальный Столп открывается только после всех событий ночи III.
  * ============================================================ */
 
-import type { EventDef, MemoryEffect, TagId } from "./types";
+import type { EchoEntry, EventDef, GameState, MemoryEffect, TagId } from "./types";
 import { EVENTS } from "./scenario";
 import { COMPANION_BY_ID } from "./data";
 import { AMBIENT_EVENTS } from "./ambient3d";
@@ -290,6 +290,151 @@ export const CAMP_SPOTS: Record<string, [number, number]> = {
 
 /** Столп присяги — север лагеря */
 export const PILLAR_POS: [number, number] = [0, -20];
+
+/* ============================================================
+ * РАЗВЯЗКА У СТОЛПА (M1.4 «Нож под клятвой»)
+ * Если к финалу у кого-то из отряда ступень ≥III (заговор/удар в спину),
+ * Мгла не ждёт клятвы — она выходит из тумана его ртом и вкладывает нож.
+ * Судьбу решает выбор игрока: держать клятву / отпустить / исповедь.
+ * ============================================================ */
+
+export const FINALE_EVENT_ID = "e12_finale";
+
+function worstOf(cs: GameState["party"][string]): string {
+  let worst: string | null = null;
+  let v = 0;
+  for (const m of cs.memories) {
+    if (!worst || m.valence < v) {
+      worst = m.label;
+      v = m.valence;
+    }
+  }
+  return worst ?? "молчание длиннее жизни";
+}
+
+/** кто к финалу надломлен достаточно, чтобы Мгла могла говорить его ртом */
+export function finaleCandidates(state: GameState): string[] {
+  return Object.values(state.party)
+    .filter((cs) => !cs.gone && !cs.frozen && cs.level >= 3)
+    .sort((a, b) => b.level - a.level || a.trust - b.trust)
+    .map((cs) => cs.id);
+}
+
+/** родительный падеж имён: «против Гаврилы», «против Милуты» */
+const NAME_GEN: Record<string, string> = {
+  gavrila: "Гаврилы",
+  khodata: "Ходаты",
+  miluta: "Милуты",
+  ratmir: "Ратмира",
+};
+
+/** финальная сцена предательства; null — клятва чиста, игнор обычного e12 */
+export function makeFinaleEvent(state: GameState, echo: EchoEntry[]): EventDef | null {
+  const cid = finaleCandidates(state)[0];
+  if (!cid) return null;
+  const cs = state.party[cid];
+  const def = COMPANION_BY_ID[cid];
+
+  const myEcho = echo.filter((e) => e.cid === cid);
+  const scorned = myEcho.some((e) => !e.spared);
+  const spared = myEcho.some((e) => e.spared);
+  const whCount = Object.keys(state.flags).filter((k) => k.startsWith("wh_")).length;
+
+  const text: string[] = [
+    "Мгла спрессовывается вокруг Столпа — плотно, как вода вокруг камня. Костёр за спиной вытягивается в столб, и в этом столбе тени стоят, как люди.",
+    `${def.name} выходит из круга. Лицо спокойное — спокойнее, чем было все три ночи. В руке нож, повёрнутый лезвием к себе. Пока.`,
+    `Голос Мглы говорит его ртом — не спеша, самым больным из твоих записей: «${worstOf(cs)}». Она не лжёт о прошлом.`,
+  ];
+  if (scorned) {
+    text.push(
+      `Ты узнаёшь этот голос. Ночью он звучал и в твоей голове — и ты ответил ему против ${NAME_GEN[cid] ?? def.name}. Мгла просто возвращает долг.`,
+    );
+  } else if (spared) {
+    text.push(
+      `Ночью этот голос звал тебя против ${NAME_GEN[cid] ?? def.name}. Ты не ответил. Мгла помнит и это — потому сейчас она говорит с тобой его ртом.`,
+    );
+  } else if (whCount > 0) {
+    text.push(
+      `За три ночи ты ответил её шёпотам ${whCount} ${whCount === 1 ? "раз" : "раза"}. Она запомнила каждый — и пришла вернуть.`,
+    );
+  } else {
+    text.push(
+      "За три ночи ты не ответил ни на один её шёпот. Это единственное, чего она не может у тебя отнять, — и потому сейчас она берёт чужое.",
+    );
+  }
+
+  return {
+    id: FINALE_EVENT_ID,
+    day: 3,
+    phase: "Ночь",
+    title: "⸸ НОЖ ПОД КЛЯТВОЙ",
+    text,
+    choices: [
+      {
+        id: "hold",
+        label: `Держать клятву: «Ты под клятвой. Мгла не получит тебя живым»`,
+        note: "Нож выйдет — но отряд увидит, что вожак не торгуется",
+        triggersFinale: true,
+        finaleAct: "hold",
+        finaleTarget: cid,
+        memories: [
+          { target: "gavrila", tag: "oath", valence: 1, label: "У Столпа вожак не торгуется — ветеран видел" },
+          { target: "ratmir", tag: "courage", valence: 1, label: "Вожак встал между отрядом и ножом" },
+          {
+            target: "miluta",
+            tag: "protection",
+            valence: -1,
+            label: "Записал дрожащим пером: «не удержал. зарубил»",
+          },
+        ],
+      },
+      {
+        id: "release",
+        label: `Отпустить: «Иди. Клятва не держит тех, кто уже ушёл»`,
+        note: "Он уйдёт живым — отряд запомнит, чем это куплено",
+        triggersFinale: true,
+        finaleAct: "release",
+        finaleTarget: cid,
+        memories: [
+          {
+            target: "gavrila",
+            tag: "oath",
+            valence: -2,
+            label: "Отпустил с ножом за пазухой — ветеран отвернулся",
+          },
+          {
+            target: "ratmir",
+            tag: "courage",
+            valence: -1,
+            label: "Отряд смотрел, как вожак отступил без боя",
+          },
+          {
+            target: "miluta",
+            tag: "mercy",
+            valence: 1,
+            label: "Записал: «отпустил живым — не стало ни крови, ни клятвы»",
+          },
+        ],
+      },
+      {
+        id: "confess",
+        label: "Взять вину на себя: при отряде назвать каждый свой шёпот",
+        note: "Память не тускнеет — но истина весит. Удержит ли его эта ноша",
+        triggersFinale: true,
+        finaleAct: "confess",
+        finaleTarget: cid,
+        memories: [
+          {
+            target: "all",
+            tag: "honesty",
+            valence: 1,
+            label: "Вожак назвал свои шёпоты вслух — при всех",
+          },
+        ],
+      },
+    ],
+  };
+}
 
 /* ============================================================
  * РАЗГОВОРЫ У КОСТРА

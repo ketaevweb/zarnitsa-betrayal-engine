@@ -13,6 +13,7 @@ import { WOOD_PILES, dreadLevel, mglLive, watcherTargetR } from "@/lib/zarnitsa/
 import { BRUSHWOOD_SPOTS } from "@/lib/zarnitsa/day";
 import { pickWhisper } from "@/lib/zarnitsa/whispers";
 import { setDread, setDayMode, sfxStep, sfxWhisper } from "@/lib/zarnitsa/audio";
+import { FINALE_EVENT_ID } from "@/lib/zarnitsa/scenario3d";
 import { addFootprint, companionLive, touchInput } from "./campLife";
 
 /** глобальное состояние клавиш (обновляется в GameCanvas) */
@@ -171,15 +172,22 @@ export function Player() {
     }
 
     // Мгла: живое кольцо — подступ по топливу, память о ближайшем круге (M0.9).
-    // Днём (M1.1) Мгла отступила — стужа отпускает; смена дня меняет и звук (M1.2)
+    // Днём (M1.1) Мгла отступила — стужа отпускает; смена дня меняет и звук (M1.2).
+    // В развязке (M1.4) Мгла прижата к Столпу — стужа на пределе, пока идёт сцена
     if (isDay) {
       setDread(0);
       setDayMode(true);
     } else if (store.screen !== "title") {
       setDayMode(false);
-      const tr = watcherTargetR(store.night, store.fire.fuel);
-      if (tr < mglLive.closest) mglLive.closest = tr;
-      setDread(dreadLevel(store.fire.fuel));
+      const finaleNow = store.screen === "event" && store.activeEvent?.id === FINALE_EVENT_ID;
+      if (finaleNow) {
+        setDread(1);
+        mglLive.closest = Math.min(mglLive.closest, 5.2);
+      } else {
+        const tr = watcherTargetR(store.night, store.fire.fuel);
+        if (tr < mglLive.closest) mglLive.closest = tr;
+        setDread(dreadLevel(store.fire.fuel));
+      }
     }
 
     // Шёпоты Мглы (M1.0): долгая стужа туманит разум — до двух за ночь

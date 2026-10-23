@@ -67,3 +67,4 @@ server.log
 
 # скриншоты браузерных проверок
 scripts/zarnitsa-web/shot*.png
+tool-results/

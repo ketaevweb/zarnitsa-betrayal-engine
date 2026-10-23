@@ -1,6 +1,7 @@
 /* ============================================================
  * Симуляция 3D-сценария «Три ночи под Мглой» — баланс-тест.
  * Вопрос: достижим ли Разрыв (V / ночь ножей) БЕЗ пульта испытателя?
+ * M1.4: развязка у Столпа — нож / отпуск / исповедь по надлому памяти.
  *
  *   bunx tsx scripts/zarnitsa-web/simulate3d.ts
  * ============================================================ */
@@ -15,6 +16,7 @@ import {
   type SpeechOption,
 } from "../../src/lib/zarnitsa/engine";
 import {
+  makeFinaleEvent,
   makeTalkEvent,
   NIGHT_COUNT,
   nightEvents,
@@ -186,7 +188,10 @@ function invariants(state: GameState, label: string) {
     assert(cs.level === levelFromTrust(cs.trust) || cs.level === 5 || cs.frozen,
       `${label}: ступень ${cs.id} согласована с доверием`);
     if (cs.level === 5) {
-      assert(cs.betrayedAtFinale === true, `${label}: V у ${cs.id} — только сюжетный force_break`);
+      assert(
+        state.finished,
+        `${label}: V у ${cs.id} возможен только в финальной развязке (нож или отпуск)`,
+      );
     }
     for (const m of cs.memories) {
       assert(Number.isInteger(m.valence) && m.valence >= -3 && m.valence <= 3,
@@ -248,6 +253,90 @@ for (const seed of [11, 22, 33, 44]) {
   if (maxLevel >= 1) anyDoubt = true;
 }
 assert(anyDoubt, "в случайных прогонах сомнение (I+) возникает само");
+
+/* --- 4. РАЗВЯЗКА (M1.4): Мгла вкладывает нож — три исхода у Столпа --- */
+console.log("\n4) РАЗВЯЗКА: ступень IV у Столпа — нож / отпуск / исповедь");
+
+// надломленный Гаврила — как его делает память за три ночи, но без заморозки
+function finaleState(trust: number): GameState {
+  const s = debugReset();
+  s.party.gavrila.trust = trust;
+  s.party.gavrila.level = trust < 10 ? 4 : 3;
+  s.party.gavrila.memories.push({
+    id: "mem_test",
+    tag: "cowardice",
+    valence: -2,
+    label: "Шёпот: «твой страх заметили»",
+    day: 2,
+    phase: "Ночь",
+  });
+  return s;
+}
+
+const finBase = finaleState(8);
+const finEvent = makeFinaleEvent(finBase, []);
+assert(finEvent !== null, "сцена развязки открывается при ступени IV");
+if (finEvent) {
+  assert(finEvent.id === "e12_finale", "id развязки отличен от обычного Столпа");
+  assert(finEvent.choices.length === 3, "три развязки: держать / отпустить / исповедь");
+  assert(
+    finEvent.text.some((p) => p.includes("Шёпот: «твой страх заметили»")),
+    "Мгла говорит самым больным воспоминанием кандидата",
+  );
+
+  // а. Держать клятву → нож (V, предательство)
+  const sHold = applyChoice(withPhase(structuredClone(finBase), 3, "Ночь"), finEvent.choices[0]);
+  assert(sHold.finished, "«Держать клятву» завершает поход");
+  assert(
+    sHold.party.gavrila.gone && sHold.party.gavrila.betrayedAtFinale === true,
+    "нож выходит: V с предательством",
+  );
+  invariants(sHold, "нож");
+
+  // б. Отпустить → уход живым (V без предательства)
+  const sRel = applyChoice(withPhase(structuredClone(finBase), 3, "Ночь"), finEvent.choices[1]);
+  assert(sRel.finished, "«Отпустить» завершает поход");
+  assert(
+    sRel.party.gavrila.gone && sRel.party.gavrila.level === 5 && !sRel.party.gavrila.betrayedAtFinale,
+    "«Отпустить» — V без ножа (уход живым)",
+  );
+  invariants(sRel, "отпуск");
+
+  // в. Исповедь: память не тускнеет — истина весит, но не стирает горькие записи
+  const sConf = applyChoice(withPhase(structuredClone(finBase), 3, "Ночь"), finEvent.choices[2]);
+  assert(sConf.finished, "«Взять вину на себя» завершает поход");
+  assert(
+    !sConf.party.gavrila.gone && sConf.party.gavrila.level === 3,
+    `исповедь удержала нож (доверие ${sConf.party.gavrila.trust.toFixed(1)}, ступень 3)`,
+  );
+  invariants(sConf, "исповедь");
+
+  // г. Глубокий надлом: исповедь не спасает — записи тяжелее истины
+  const deep = finaleState(2);
+  const deepEvent = makeFinaleEvent(deep, []);
+  if (deepEvent) {
+    const sDeep = applyChoice(withPhase(structuredClone(deep), 3, "Ночь"), deepEvent.choices[2]);
+    assert(
+      sDeep.party.gavrila.gone && sDeep.party.gavrila.betrayedAtFinale === true,
+      `при доверии 2 исповедь не удержала — нож всё равно выходит (${sDeep.party.gavrila.trust.toFixed(1)})`,
+    );
+    invariants(sDeep, "глубокая исповедь");
+  }
+
+  // д. Эхо шёпотов против кандидата — Мгла возвращает долг вслух
+  const echoEvent = makeFinaleEvent(finBase, [{ cid: "gavrila", spared: false, tag: "cowardice" }]);
+  assert(
+    echoEvent !== null && echoEvent.text.some((p) => p.includes("возвращает долг")),
+    "принятый шёпот против кандидата звучит в развязке",
+  );
+  const sparedEvent = makeFinaleEvent(finBase, [{ cid: "gavrila", spared: true, tag: "courage" }]);
+  assert(
+    sparedEvent !== null && sparedEvent.text.some((p) => p.includes("Ты не ответил")),
+    "отвергнутый шёпот тоже помнят — но в пользу игрока",
+  );
+} else {
+  failures.push("makeFinaleEvent вернул null при ступени IV");
+}
 
 console.log("\n================================");
 if (failures.length === 0) {

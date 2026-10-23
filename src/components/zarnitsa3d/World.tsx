@@ -9,7 +9,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Sparks } from "./Particles";
-import { CAMP_SPOTS, PILLAR_POS, SCENE_EVENTS } from "@/lib/zarnitsa/scenario3d";
+import { CAMP_SPOTS, FINALE_EVENT_ID, PILLAR_POS, SCENE_EVENTS } from "@/lib/zarnitsa/scenario3d";
 import { WOOD_PILES, WATCHER_ANGLES, dreadLevel, watcherTargetR } from "@/lib/zarnitsa/camp3d";
 import { Crow } from "./Crow";
 import { useZarnitsa } from "@/lib/zarnitsa/store";
@@ -193,11 +193,15 @@ function Watcher({ angle, idx }: { angle: number; idx: number }) {
     if (!g) return;
     const t = clock.getElapsedTime();
     // живое кольцо: ночь + подступ по топливу + свой «зыбкий» шаг у фигуры (M0.9)
-    const fuel = useZarnitsa.getState().fire.fuel;
+    const zs = useZarnitsa.getState();
+    const fuel = zs.fire.fuel;
     const dl = dreadLevel(fuel);
-    const targetR = watcherTargetR(night, fuel) - 0.7 - Math.sin(t * 0.23 + idx * 2.1) * 0.7;
+    // развязка (M1.4): Мгла прижата к Столпу — дозорные смотрят сцену изплотную
+    const finaleNow = zs.screen === "event" && zs.activeEvent?.id === FINALE_EVENT_ID;
+    const baseR = finaleNow ? 7.4 : watcherTargetR(night, fuel);
+    const targetR = baseR - 0.7 - Math.sin(t * 0.23 + idx * 2.1) * 0.7;
     const curR = Math.hypot(g.position.x, g.position.z);
-    const rate = fuel <= 0 ? 0.032 : 0.015;
+    const rate = finaleNow ? 0.16 : fuel <= 0 ? 0.032 : 0.015;
     const nextR = curR + (targetR - curR) * Math.min(1, rate);
     const dir = Math.atan2(g.position.z, g.position.x) || angle;
     g.position.x = Math.cos(dir) * nextR;

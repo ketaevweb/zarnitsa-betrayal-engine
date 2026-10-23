@@ -20,6 +20,7 @@ import { BRUSHWOOD_SPOTS, DAY_WOOD_CAP, DAY_WOOD_FUEL, makeDayTalk } from "./day
 import {
   NIGHT_COUNT,
   NIGHT_TITLES,
+  makeFinaleEvent,
   nightEvents,
   makeTalkEvent,
   SCENE_EVENTS,
@@ -434,6 +435,16 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
       );
       return;
     }
+    // развязка (M1.4): если клятва надломлена — Мгла выходит из тумана первой
+    if (id === "e12") {
+      const fin = makeFinaleEvent(get().state, get().whisperEcho);
+      if (fin) {
+        sfxReveal();
+        sfxWhisper();
+        set({ screen: "event", activeEvent: fin });
+        return;
+      }
+    }
     sfxReveal();
     set({ screen: "event", activeEvent: ev });
   },
@@ -737,6 +748,8 @@ export const useZarnitsa = create<ZarnitsaStore>((set, get) => ({
           : def.targets;
       for (const t of targets) echo.push({ cid: t, spared: false, tag: def.tag });
       next = applyWhisper(state, targets, def.tag, def.valence, def.label);
+      // счётчик принятых шёпотов за прогон — развязка у Столпа помнит его (M1.4)
+      next.flags[`wh_${def.id}`] = true;
       // принятие — укол: диссонанс и тряска
       sfxNeedle();
       set({ shakeAt: performance.now() });
